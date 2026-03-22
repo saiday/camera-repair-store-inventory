@@ -72,7 +72,7 @@ test_create_item() {
       "date": "2026-03-22"
     }')"
   assert_contains "$response" "CAM-20260322-EOS-R5-001" "should return created item ID"
-  assert_dir_exists "$TEST_TMP/data/repairs/CAM-20260322-EOS-R5-001" "item dir should exist"
+  assert_dir_exists "$TEST_TMP/data/repairs/2026/03/CAM-20260322-EOS-R5-001" "item dir should exist"
   stop_server
   teardown
 }
@@ -124,6 +124,19 @@ test_get_item_raw() {
   teardown
 }
 
+test_api_items_nested_dirs() {
+  setup
+  start_server
+  # Create an item (now nested)
+  "$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
+    --category camera --brand Canon --model Test --serial 123 \
+    --owner-name Test --owner-contact 0912 --description "nested" --date 2026-03-22
+  RESPONSE="$(curl -s "http://localhost:$TEST_PORT/api/items")"
+  assert_contains "$RESPONSE" "CAM-20260322-Test-001" "item found via API from nested dir"
+  stop_server
+  teardown
+}
+
 # --- Run all tests ---
 echo "=== server.py tests ==="
 run_test "GET / serves dashboard" test_get_dashboard
@@ -131,5 +144,6 @@ run_test "POST /api/create" test_create_item
 run_test "GET /api/items" test_get_items
 run_test "GET /api/owners" test_get_owners
 run_test "GET /api/item/<id>/raw" test_get_item_raw
+run_test "GET /api/items nested dirs" test_api_items_nested_dirs
 
 print_results

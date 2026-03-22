@@ -8,6 +8,7 @@ Usage: python3 server.py --port 8787 --data-dir data --web-dir web --scripts-dir
 """
 
 import argparse
+import glob
 import json
 import os
 import re
@@ -47,6 +48,13 @@ class InventoryHandler(SimpleHTTPRequestHandler):
         elif path.startswith('/api/open-logs/'):
             item_id = path[len('/api/open-logs/'):]
             self._handle_open_logs(item_id)
+        elif path == '/_data/items.json':
+            self._handle_get_items()
+        elif path == '/_data/owners.json':
+            self._handle_get_owners()
+        elif path.startswith('/_data/items/') and path.endswith('.json'):
+            item_id = path[len('/_data/items/'):-len('.json')]
+            self._handle_get_item_json(item_id)
         else:
             super().do_GET()
 
@@ -77,15 +85,13 @@ class InventoryHandler(SimpleHTTPRequestHandler):
         repairs_dir = os.path.join(self.data_dir, 'repairs')
         items = []
         if os.path.isdir(repairs_dir):
-            for name in sorted(os.listdir(repairs_dir)):
-                item_md = os.path.join(repairs_dir, name, 'item.md')
-                if os.path.isfile(item_md):
-                    result = subprocess.run(
-                        [os.path.join(self.scripts_dir, 'parse-item.sh'), item_md],
-                        capture_output=True, text=True
-                    )
-                    if result.returncode == 0:
-                        items.append(json.loads(result.stdout))
+            for item_md in sorted(glob.glob(os.path.join(repairs_dir, '**', 'item.md'), recursive=True)):
+                result = subprocess.run(
+                    [os.path.join(self.scripts_dir, 'parse-item.sh'), item_md],
+                    capture_output=True, text=True
+                )
+                if result.returncode == 0:
+                    items.append(json.loads(result.stdout))
         self._send_json(200, items)
 
     def _handle_get_owners(self):
@@ -97,19 +103,24 @@ class InventoryHandler(SimpleHTTPRequestHandler):
         else:
             self._send_json(200, [])
 
-    def _validate_item_id(self, item_id):
-        """Validate item_id to prevent path traversal."""
+    def _find_item_dir(self, item_id):
+        """Find item directory by ID across nested YYYY/MM/ structure."""
         if not _ITEM_ID_RE.match(item_id):
-            return False
-        resolved = os.path.realpath(os.path.join(self.data_dir, 'repairs', item_id))
-        return resolved.startswith(os.path.realpath(os.path.join(self.data_dir, 'repairs')) + os.sep)
+            return None
+        repairs_dir = os.path.join(self.data_dir, 'repairs')
+        for item_md in glob.glob(os.path.join(repairs_dir, '**', item_id, 'item.md'), recursive=True):
+            resolved = os.path.realpath(os.path.dirname(item_md))
+            if resolved.startswith(os.path.realpath(repairs_dir) + os.sep):
+                return os.path.dirname(item_md)
+        return None
 
     def _handle_get_item_raw(self, item_id):
         """Return raw item.md content."""
-        if not self._validate_item_id(item_id):
+        item_dir = self._find_item_dir(item_id)
+        if item_dir is None:
             self._send_json(400, {'error': 'Invalid item ID'})
             return
-        item_md = os.path.join(self.data_dir, 'repairs', item_id, 'item.md')
+        item_md = os.path.join(item_dir, 'item.md')
         if os.path.isfile(item_md):
             with open(item_md, 'r') as f:
                 content = f.read()
@@ -120,12 +131,32 @@ class InventoryHandler(SimpleHTTPRequestHandler):
         else:
             self._send_json(404, {'error': f'Item not found: {item_id}'})
 
-    def _handle_open_logs(self, item_id):
-        """Open the item's logs folder in Finder."""
-        if not self._validate_item_id(item_id):
+    def _handle_get_item_json(self, item_id):
+        """Return full parsed JSON for a single item (including description and cost rows)."""
+        item_dir = self._find_item_dir(item_id)
+        if item_dir is None:
             self._send_json(400, {'error': 'Invalid item ID'})
             return
-        logs_dir = os.path.join(self.data_dir, 'repairs', item_id, 'logs')
+        item_md = os.path.join(item_dir, 'item.md')
+        if not os.path.isfile(item_md):
+            self._send_json(404, {'error': f'Item not found: {item_id}'})
+            return
+        result = subprocess.run(
+            [os.path.join(self.scripts_dir, 'parse-item.sh'), item_md],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            self._send_json(200, json.loads(result.stdout))
+        else:
+            self._send_json(500, {'error': result.stderr.strip()})
+
+    def _handle_open_logs(self, item_id):
+        """Open the item's logs folder in Finder."""
+        item_dir = self._find_item_dir(item_id)
+        if item_dir is None:
+            self._send_json(400, {'error': 'Invalid item ID'})
+            return
+        logs_dir = os.path.join(item_dir, 'logs')
         if os.path.isdir(logs_dir):
             subprocess.Popen(['open', logs_dir])
             self._send_json(200, {'ok': True})
@@ -163,10 +194,10 @@ class InventoryHandler(SimpleHTTPRequestHandler):
     def _handle_update(self, data):
         """Update an existing item."""
         item_id = data.get('id', '')
-        if not self._validate_item_id(item_id):
+        item_dir = self._find_item_dir(item_id)
+        if item_dir is None:
             self._send_json(400, {'error': 'Invalid item ID'})
             return
-        item_dir = os.path.join(self.data_dir, 'repairs', item_id)
 
         if not os.path.isdir(item_dir):
             self._send_json(404, {'error': f'Item not found: {item_id}'})
@@ -181,6 +212,7 @@ class InventoryHandler(SimpleHTTPRequestHandler):
             'description': '--description',
             'brand': '--brand',
             'serial_number': '--serial',
+            'page_password': '--page-password',
         }
         for field, flag in field_map.items():
             if data.get(field) not in (None, ''):
