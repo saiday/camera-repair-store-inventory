@@ -43,6 +43,7 @@ An `item.md` consists of two parts:
 | `owner_contact` | string | yes | Free text: phone, IG, FB, etc. |
 | `received_date` | date | yes | ISO date: `YYYY-MM-DD` |
 | `delivered_date` | date | no | ISO date: `YYYY-MM-DD` — empty until item is delivered |
+| `page_password` | string | no | Password to share customer page; empty unless page is published |
 
 ### Notes
 
@@ -177,6 +178,7 @@ owner_name: 王小明
 owner_contact: 0912-345-678
 received_date: 2026-03-22
 delivered_date:
+page_password: "customer123"
 ---
 
 # 維修描述
@@ -217,13 +219,20 @@ On success it outputs a JSON object with all frontmatter fields to stdout.
 
 ## Directory Layout
 
-Each item occupies one directory:
+Items are organized by year and month based on `received_date`:
 
 ```
 data/repairs/
-  CAM-20260322-EOS-R5-001/
-    item.md          # this file — source of truth
-    logs/            # unmanaged bucket: photos, receipts, notes
+  2026/
+    03/
+      CAM-20260322-EOS-R5-001/
+        item.md      # this file — source of truth
+        logs/        # unmanaged bucket: photos, receipts, notes
+      LENS-20260315-SEL-24-70-GM-001/
+        item.md
+        logs/
+    04/
+      ...
 ```
 
-The `logs/` directory is not parsed or indexed. The shop drops files in it directly via Finder. The system provides a button to open this folder but ignores its contents.
+Each item occupies one directory. The `logs/` directory is not parsed or indexed. The shop drops files in it directly via Finder. The system provides a button to open this folder but ignores its contents.
