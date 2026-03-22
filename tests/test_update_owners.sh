@@ -4,19 +4,6 @@
 set -euo pipefail
 source "$(dirname "$0")/helpers.sh"
 
-PASS_COUNT=0
-FAIL_COUNT=0
-
-run_test() {
-  local name="$1"
-  shift
-  if "$@"; then
-    pass "$name"
-    PASS_COUNT=$((PASS_COUNT + 1))
-  else
-    FAIL_COUNT=$((FAIL_COUNT + 1))
-  fi
-}
 
 create_item_with_owner() {
   local data_dir="$1" id="$2" name="$3" contact="$4"
@@ -97,6 +84,4 @@ run_test "builds owners from items" test_builds_owners
 run_test "deduplicates on name+contact" test_dedup
 run_test "same name different contact" test_same_name_different_contact
 
-echo ""
-echo "Results: $PASS_COUNT passed, $FAIL_COUNT failed"
-[[ "$FAIL_COUNT" -eq 0 ]] || exit 1
+print_results

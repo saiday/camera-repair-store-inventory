@@ -4,19 +4,6 @@
 set -euo pipefail
 source "$(dirname "$0")/helpers.sh"
 
-PASS_COUNT=0
-FAIL_COUNT=0
-
-run_test() {
-  local name="$1"
-  shift
-  if "$@"; then
-    pass "$name"
-    PASS_COUNT=$((PASS_COUNT + 1))
-  else
-    FAIL_COUNT=$((FAIL_COUNT + 1))
-  fi
-}
 
 create_test_item() {
   local item_dir="$TEST_TMP/data/repairs/CAM-20260322-EOS-R5-001"
@@ -143,6 +130,4 @@ run_test "add cost entry" test_add_cost
 run_test "delivered sets date" test_delivered_sets_date
 run_test "update description" test_update_description
 
-echo ""
-echo "Results: $PASS_COUNT passed, $FAIL_COUNT failed"
-[[ "$FAIL_COUNT" -eq 0 ]] || exit 1
+print_results

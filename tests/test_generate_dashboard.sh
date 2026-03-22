@@ -4,19 +4,6 @@
 set -euo pipefail
 source "$(dirname "$0")/helpers.sh"
 
-PASS_COUNT=0
-FAIL_COUNT=0
-
-run_test() {
-  local name="$1"
-  shift
-  if "$@"; then
-    pass "$name"
-    PASS_COUNT=$((PASS_COUNT + 1))
-  else
-    FAIL_COUNT=$((FAIL_COUNT + 1))
-  fi
-}
 
 create_item() {
   local data_dir="$1" id="$2" status="$3" owner="$4" model="$5"
@@ -102,6 +89,4 @@ run_test "generates dashboard.html" test_generates_html
 run_test "groups by status" test_groups_by_status
 run_test "empty state" test_empty_state
 
-echo ""
-echo "Results: $PASS_COUNT passed, $FAIL_COUNT failed"
-[[ "$FAIL_COUNT" -eq 0 ]] || exit 1
+print_results

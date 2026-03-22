@@ -21,14 +21,12 @@ repairs_dir = os.path.join(sys.argv[1], 'repairs')
 web_dir = sys.argv[2]
 parse_script = sys.argv[3]
 
-# Collect items grouped by status
 groups = {
     'not_started': [],
     'in_progress': [],
     'testing': [],
     'done': [],
     'ice_box': [],
-    'delivered': [],
 }
 
 if os.path.isdir(repairs_dir):

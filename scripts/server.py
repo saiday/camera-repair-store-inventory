@@ -10,10 +10,14 @@ Usage: python3 server.py --port 8787 --data-dir data --web-dir web --scripts-dir
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
+from datetime import date
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+
+_ITEM_ID_RE = re.compile(r'^[A-Za-z0-9-]+$')
 
 
 class InventoryHandler(SimpleHTTPRequestHandler):
@@ -95,13 +99,10 @@ class InventoryHandler(SimpleHTTPRequestHandler):
 
     def _validate_item_id(self, item_id):
         """Validate item_id to prevent path traversal."""
-        import re
-        if not re.match(r'^[A-Za-z0-9-]+$', item_id):
+        if not _ITEM_ID_RE.match(item_id):
             return False
         resolved = os.path.realpath(os.path.join(self.data_dir, 'repairs', item_id))
-        if not resolved.startswith(os.path.realpath(os.path.join(self.data_dir, 'repairs')) + os.sep):
-            return False
-        return True
+        return resolved.startswith(os.path.realpath(os.path.join(self.data_dir, 'repairs')) + os.sep)
 
     def _handle_get_item_raw(self, item_id):
         """Return raw item.md content."""
@@ -133,6 +134,7 @@ class InventoryHandler(SimpleHTTPRequestHandler):
 
     def _handle_create(self, data):
         """Create a new repair item."""
+        item_date = data.get('date') or date.today().isoformat()
         cmd = [
             os.path.join(self.scripts_dir, 'create-item.sh'),
             '--data-dir', self.data_dir,
@@ -143,15 +145,10 @@ class InventoryHandler(SimpleHTTPRequestHandler):
             '--owner-name', data.get('owner_name', ''),
             '--owner-contact', data.get('owner_contact', ''),
             '--description', data.get('description', ''),
-            '--date', data.get('date', ''),
+            '--date', item_date,
         ]
         if data.get('cost_amount') and data.get('cost_note'):
             cmd += ['--cost-amount', str(data['cost_amount']), '--cost-note', data['cost_note']]
-
-        # Default date to today if not provided
-        if not data.get('date'):
-            from datetime import date
-            cmd[cmd.index('--date') + 1] = date.today().isoformat()
 
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
@@ -185,7 +182,7 @@ class InventoryHandler(SimpleHTTPRequestHandler):
             'serial_number': '--serial',
         }
         for field, flag in field_map.items():
-            if field in data and data[field]:
+            if data.get(field) not in (None, ''):
                 cmd += [flag, str(data[field])]
 
         if data.get('cost_amount') and data.get('cost_note'):
@@ -209,21 +206,21 @@ class InventoryHandler(SimpleHTTPRequestHandler):
         """Mark an item as delivered."""
         data['status'] = 'delivered'
         if 'delivered_date' not in data:
-            from datetime import date
             data['delivered_date'] = date.today().isoformat()
         self._handle_update(data)
 
     def _run_hooks(self, item_id):
-        """Run post-mutation hooks: update owners, regenerate dashboard."""
-        subprocess.run(
+        """Run post-mutation hooks in parallel: update owners, regenerate dashboard."""
+        p1 = subprocess.Popen(
             [os.path.join(self.scripts_dir, 'update-owners.sh'), self.data_dir],
-            capture_output=True, text=True
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
-        web_dir = self.web_dir
-        subprocess.run(
-            [os.path.join(self.scripts_dir, 'generate-dashboard.sh'), self.data_dir, web_dir],
-            capture_output=True, text=True
+        p2 = subprocess.Popen(
+            [os.path.join(self.scripts_dir, 'generate-dashboard.sh'), self.data_dir, self.web_dir],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
+        p1.wait()
+        p2.wait()
 
     def _send_json(self, status_code, data):
         """Send a JSON response."""

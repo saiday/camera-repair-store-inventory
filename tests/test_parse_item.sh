@@ -4,20 +4,6 @@
 set -euo pipefail
 source "$(dirname "$0")/helpers.sh"
 
-PASS_COUNT=0
-FAIL_COUNT=0
-
-run_test() {
-  local name="$1"
-  shift
-  if "$@"; then
-    pass "$name"
-    PASS_COUNT=$((PASS_COUNT + 1))
-  else
-    FAIL_COUNT=$((FAIL_COUNT + 1))
-  fi
-}
-
 # --- Test: valid item.md parses to JSON ---
 test_valid_parse() {
   setup
@@ -183,6 +169,4 @@ run_test "invalid status" test_invalid_status
 run_test "missing body section" test_missing_body_section
 run_test "file not found" test_file_not_found
 
-echo ""
-echo "Results: $PASS_COUNT passed, $FAIL_COUNT failed"
-[[ "$FAIL_COUNT" -eq 0 ]] || exit 1
+print_results

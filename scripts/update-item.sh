@@ -35,8 +35,10 @@ done
 
 [[ -n "$ITEM_DIR" ]] || { echo "ERROR: --item-dir is required" >&2; exit 1; }
 
-# Default cost date to today if not provided
-[[ -z "$COST_DATE" ]] && COST_DATE="$(date +%Y-%m-%d)"
+# Default cost date to today only when a cost entry is being added
+if [[ -n "$COST_AMOUNT" && -n "$COST_NOTE" && -z "$COST_DATE" ]]; then
+  COST_DATE="$(date +%Y-%m-%d)"
+fi
 
 ITEM_FILE="$ITEM_DIR/item.md"
 [[ -f "$ITEM_FILE" ]] || { echo "ERROR: item.md not found in $ITEM_DIR" >&2; exit 1; }

@@ -4,19 +4,6 @@
 set -euo pipefail
 source "$(dirname "$0")/helpers.sh"
 
-PASS_COUNT=0
-FAIL_COUNT=0
-
-run_test() {
-  local name="$1"
-  shift
-  if "$@"; then
-    pass "$name"
-    PASS_COUNT=$((PASS_COUNT + 1))
-  else
-    FAIL_COUNT=$((FAIL_COUNT + 1))
-  fi
-}
 
 # --- Test: create a basic item ---
 test_create_basic() {
@@ -137,6 +124,4 @@ run_test "sequence increment" test_sequence_increment
 run_test "initial cost entry" test_initial_cost
 run_test "category prefixes" test_category_prefixes
 
-echo ""
-echo "Results: $PASS_COUNT passed, $FAIL_COUNT failed"
-[[ "$FAIL_COUNT" -eq 0 ]] || exit 1
+print_results

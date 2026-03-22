@@ -4,22 +4,9 @@
 set -euo pipefail
 source "$(dirname "$0")/helpers.sh"
 
-PASS_COUNT=0
-FAIL_COUNT=0
 SERVER_PID=""
 
 trap 'stop_server; teardown' EXIT
-
-run_test() {
-  local name="$1"
-  shift
-  if "$@"; then
-    pass "$name"
-    PASS_COUNT=$((PASS_COUNT + 1))
-  else
-    FAIL_COUNT=$((FAIL_COUNT + 1))
-  fi
-}
 
 start_server() {
   mkdir -p "$TEST_TMP/web/static"
@@ -145,6 +132,4 @@ run_test "GET /api/items" test_get_items
 run_test "GET /api/owners" test_get_owners
 run_test "GET /api/item/<id>/raw" test_get_item_raw
 
-echo ""
-echo "Results: $PASS_COUNT passed, $FAIL_COUNT failed"
-[[ "$FAIL_COUNT" -eq 0 ]] || exit 1
+print_results

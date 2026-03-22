@@ -28,7 +28,6 @@ item_id = os.path.basename(os.path.dirname(item_file))
 with open(item_file, 'r') as f:
     content = f.read()
 
-# Parse frontmatter
 fm_match = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
 if not fm_match:
     print(f'ERROR: item.md parse failed — no frontmatter found in {item_id}', file=sys.stderr)
@@ -40,19 +39,16 @@ for line in fm_match.group(1).split('\n'):
     if colon_idx > 0:
         key = line[:colon_idx].strip()
         value = line[colon_idx+1:].strip()
-        # Remove surrounding quotes
         if value.startswith('\"') and value.endswith('\"'):
             value = value[1:-1]
         fields[key] = value
 
-# Validate required fields
 required = ['id','category','brand','model','serial_number','status','owner_name','owner_contact','received_date']
 for field in required:
     if not fields.get(field):
         print(f\"ERROR: item.md parse failed — missing required field '{field}' in {item_id}\", file=sys.stderr)
         sys.exit(1)
 
-# Validate enums
 valid_statuses = ['not_started','in_progress','testing','done','delivered','ice_box']
 if fields['status'] not in valid_statuses:
     print(f\"ERROR: item.md parse failed — invalid status '{fields['status']}' in {item_id} (valid: {' '.join(valid_statuses)})\", file=sys.stderr)
@@ -63,7 +59,6 @@ if fields['category'] not in valid_categories:
     print(f\"ERROR: item.md parse failed — invalid category '{fields['category']}' in {item_id} (valid: {' '.join(valid_categories)})\", file=sys.stderr)
     sys.exit(1)
 
-# Validate body sections (content after the closing ---)
 body = content[fm_match.end():]
 if '# 維修描述' not in body:
     print(f'ERROR: item.md parse failed — missing section \"# 維修描述\" in {item_id}', file=sys.stderr)
@@ -72,7 +67,6 @@ if '# 費用紀錄' not in body:
     print(f'ERROR: item.md parse failed — missing section \"# 費用紀錄\" in {item_id}', file=sys.stderr)
     sys.exit(1)
 
-# Output JSON
 result = {
     'id': fields.get('id', ''),
     'category': fields.get('category', ''),

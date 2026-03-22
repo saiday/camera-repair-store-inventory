@@ -65,3 +65,23 @@ assert_exit_code() {
 pass() {
   echo "PASS: $1"
 }
+
+PASS_COUNT=0
+FAIL_COUNT=0
+
+run_test() {
+  local name="$1"
+  shift
+  if "$@"; then
+    pass "$name"
+    PASS_COUNT=$((PASS_COUNT + 1))
+  else
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+  fi
+}
+
+print_results() {
+  echo ""
+  echo "Results: $PASS_COUNT passed, $FAIL_COUNT failed"
+  [[ "$FAIL_COUNT" -eq 0 ]] || exit 1
+}

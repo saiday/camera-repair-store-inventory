@@ -8,6 +8,8 @@
   let currentItemId = null;
   let originalCost = null;
 
+  function todayISO() { return todayISO(); }
+
   // --- Init ---
   document.addEventListener('DOMContentLoaded', async function() {
     await Promise.all([loadItems(), loadOwners()]);
@@ -104,13 +106,13 @@
     document.getElementById('description').value = parsed.description || '';
     document.getElementById('status').value = fm.status || '';
 
-    // Display cost history
-    originalCost = { amount: '', note: '' };
     const lastRow = parsed.costRows[parsed.costRows.length - 1];
     if (lastRow) {
       document.getElementById('cost-amount').value = lastRow.amount;
       document.getElementById('cost-note').value = lastRow.note;
       originalCost = { amount: lastRow.amount, note: lastRow.note };
+    } else {
+      originalCost = { amount: '', note: '' };
     }
     renderCostHistory(parsed.costRows);
   }
@@ -256,7 +258,7 @@
       owner_name: document.getElementById('owner-name').value,
       owner_contact: document.getElementById('owner-contact').value,
       description: document.getElementById('description').value,
-      date: new Date().toISOString().split('T')[0],
+      date: todayISO(),
     };
 
     const amount = document.getElementById('cost-amount').value;
@@ -296,12 +298,12 @@
     if (originalCost && (newAmount !== originalCost.amount || newNote !== originalCost.note)) {
       data.cost_amount = newAmount;
       data.cost_note = newNote;
-      data.cost_date = new Date().toISOString().split('T')[0];
+      data.cost_date = todayISO();
     }
 
     // Auto-set delivered_date
     if (data.status === 'delivered') {
-      data.delivered_date = new Date().toISOString().split('T')[0];
+      data.delivered_date = todayISO();
     }
 
     const res = await fetch('/api/update', {
@@ -311,7 +313,6 @@
     });
     const result = await res.json();
     if (res.ok) {
-      // Reload to show updated data
       window.location.reload();
     } else {
       alert('更新失敗: ' + result.error);
