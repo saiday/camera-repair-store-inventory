@@ -80,7 +80,7 @@ Add cost? (y/N): y
 
 - `create-item.sh` and `update-item.sh` call `update-owners.sh` and `generate-dashboard.sh` after a successful mutation
 - Hooks run in the background (`&`) so they don't block the script's output
-- `server.py`: remove `_run_hooks` method and its call sites — the server no longer manages hooks since the underlying scripts handle it
+- `server.py`: pass `--no-hooks` to script calls to prevent double hook execution — the server keeps its synchronous `_run_hooks` so API responses wait for hooks to finish before responding
 
 ### `--no-hooks` flag
 
