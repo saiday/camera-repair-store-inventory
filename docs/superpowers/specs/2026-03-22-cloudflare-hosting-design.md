@@ -166,7 +166,7 @@ The file is the source of truth — if someone manually sets `page_password` in 
 ### Customer (item page)
 
 1. Customer visits `/item/{ITEM_ID}`
-2. `[id].js` reads `_data/published.json` to look up the item
+2. `[id].js` reads `web/_data/published.json` via `env.ASSETS.fetch()` to look up the item
 3. **Not found (unpublished or delivered) →** 404
 4. **Found →** Worker checks for a `customer_session_{item_id}` cookie
 5. **No cookie / expired →** Worker serves a password prompt page
@@ -197,7 +197,7 @@ Cloudflare Pages build command: `./scripts/build.sh`
 2. **Generate owners** — scan all items, deduplicate `{name, contact}` pairs, write to `web/_data/owners.json`
 3. **Generate dashboard** — run `generate-dashboard.sh` (outputs `web/dashboard.html`)
 4. **Generate customer pages** — for each item where `page_password` is non-empty AND status is not `delivered`, generate `web/customer/{ITEM_ID}.html` with item details (strips owner_name and owner_contact)
-5. **Generate manifest** — for each published item, generate a random salt, hash `salt + page_password` with SHA-256 (via `shasum -a 256` for macOS compatibility), write to `web/_data/published.json`
+5. **Generate manifest** — for each published item, generate a random salt, hash `salt + page_password` with SHA-256 (via `shasum -a 256` on macOS or `sha256sum` on Linux), write to `web/_data/published.json`
 
 **Output directory** (Cloudflare Pages serves): `web/`
 
@@ -228,7 +228,7 @@ Cloudflare Pages build command: `./scripts/build.sh`
   - Increments to next sequence number
 - Builds `item.md` content (frontmatter + body)
 - Commits new file to repo via GitHub API (using `GITHUB_TOKEN` env var)
-- **Race condition handling:** uses GitHub API's "create file" endpoint which fails if the path already exists. On conflict (409), retries with the next sequence number (max 3 retries)
+- **Race condition handling:** uses GitHub API's "create file" endpoint which fails if the path already exists. On conflict error (HTTP 409 or 422), retries with the next sequence number (max 3 retries)
 - Returns new item ID to client
 - Push triggers Cloudflare Pages rebuild
 
@@ -319,6 +319,7 @@ After a create/update mutation, the GitHub commit triggers a Cloudflare Pages re
 - `scripts/migrate-directory.sh` — one-time migration script (flat → YYYY/MM/ nesting)
 - `scripts/generate-customer-pages.sh` — customer page generator
 - `scripts/generate-manifest.sh` — published items manifest generator
+- Updated `.gitignore` — exclude build-generated `web/_data/` and `web/customer/`
 - `wrangler.toml` — Cloudflare Pages configuration
 - `docs/cloud-architecture.md` — reusable reference for route-based Pages Functions architecture
 - `docs/cloudflare-setup.md` — step-by-step guide for non-technical users (includes GitHub token creation with minimum scope)
