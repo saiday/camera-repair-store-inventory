@@ -6,12 +6,6 @@
 const COOKIE_NAME = 'shop_session';
 const COOKIE_MAX_AGE = 86400; // 24 hours
 
-function generateToken() {
-  const array = new Uint8Array(32);
-  crypto.getRandomValues(array);
-  return Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
-}
-
 async function verifyToken(token, env) {
   // Simple token verification — token is the hash of password + secret
   const expected = await hashPassword(env.SHOP_PASSWORD);

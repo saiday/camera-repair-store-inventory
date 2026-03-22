@@ -5,6 +5,10 @@
 
 const COOKIE_MAX_AGE = 604800; // 7 days
 
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function getCookie(request, name) {
   const cookies = request.headers.get('Cookie') || '';
   const match = cookies.match(new RegExp(`${name}=([^;]+)`));
@@ -53,7 +57,7 @@ function passwordPage(itemId, error = '') {
 <body>
   <div class="login">
     <h1>查看維修進度</h1>
-    <p>請輸入密碼以查看維修單 ${itemId}</p>
+    <p>請輸入密碼以查看維修單 ${escapeHtml(itemId)}</p>
     ${errorHtml}
     <form method="POST">
       <input type="password" name="password" placeholder="請輸入密碼" autofocus required>

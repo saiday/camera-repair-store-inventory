@@ -178,7 +178,7 @@ owner_name: 王小明
 owner_contact: 0912-345-678
 received_date: 2026-03-22
 delivered_date:
-page_password: "customer123"
+page_password: customer123
 ---
 
 # 維修描述
