@@ -21,14 +21,14 @@ print_step() {
     local title="$2"
     echo ""
     echo "============================================================"
-    echo "  步驟 $num：$title"
+    echo "  步驟 ${num}：${title}"
     echo "============================================================"
 }
 
 print_error() {
     echo ""
     echo "[錯誤] $1"
-    echo "  → 請參閱 $DOCS_SETUP 瞭解更多資訊。"
+    echo "  → 請參閱 ${DOCS_SETUP} 瞭解更多資訊。"
     echo ""
 }
 
@@ -105,7 +105,7 @@ print_step 3 "GitHub 倉庫名稱"
 
 echo "  請輸入你的 GitHub 倉庫名稱，格式為：用戶名/倉庫名稱"
 echo "  範例：john/camera-repair-inventory"
-echo "  （如何建立倉庫，請參閱 $DOCS_SETUP）"
+echo "  （如何建立倉庫，請參閱 ${DOCS_SETUP}）"
 echo ""
 
 GITHUB_REPO=""
@@ -135,7 +135,7 @@ print_step 4 "GitHub Token"
 
 echo "  需要一組 GitHub Fine-grained personal access token。"
 echo "  此 Token 必須具備倉庫 Contents 的「Read and write」權限。"
-echo "  如何建立 Token，請參閱：$DOCS_SETUP"
+echo "  如何建立 Token，請參閱：${DOCS_SETUP}"
 echo ""
 echo "  注意：輸入時不會顯示字元，請直接貼上後按 Enter。"
 echo ""
@@ -244,7 +244,7 @@ if wrangler pages project create "$PROJECT_NAME" --production-branch "$GITHUB_BR
 else
     echo ""
     echo "  [提示] 若顯示「已存在」相關訊息，表示專案先前已建立，可繼續下一步。"
-    echo "  若出現其他錯誤，請參閱 $DOCS_SETUP。"
+    echo "  若出現其他錯誤，請參閱 ${DOCS_SETUP}。"
     echo ""
     confirm_continue "  確認後按 Enter 繼續..."
 fi
@@ -259,7 +259,7 @@ echo "  正在設定 SHOP_PASSWORD（管理員密碼）..."
 if echo "$SHOP_PASSWORD" | wrangler pages secret put SHOP_PASSWORD --project-name "$PROJECT_NAME"; then
     print_ok "SHOP_PASSWORD 已設定。"
 else
-    die "設定 SHOP_PASSWORD 失敗。請參閱 $DOCS_SETUP。"
+    die "設定 SHOP_PASSWORD 失敗。請參閱 ${DOCS_SETUP}。"
 fi
 
 echo ""
@@ -267,7 +267,7 @@ echo "  正在設定 GITHUB_TOKEN..."
 if echo "$GITHUB_TOKEN" | wrangler pages secret put GITHUB_TOKEN --project-name "$PROJECT_NAME"; then
     print_ok "GITHUB_TOKEN 已設定。"
 else
-    die "設定 GITHUB_TOKEN 失敗。請參閱 $DOCS_SETUP。"
+    die "設定 GITHUB_TOKEN 失敗。請參閱 ${DOCS_SETUP}。"
 fi
 
 # ---------------------------------------------------------------------------
@@ -308,7 +308,7 @@ echo ""
 if bash "$SCRIPT_DIR/build.sh"; then
     print_ok "建置完成。"
 else
-    die "build.sh 失敗。請確認資料目錄正確，並參閱 $DOCS_SETUP。"
+    die "build.sh 失敗。請確認資料目錄正確，並參閱 ${DOCS_SETUP}。"
 fi
 
 echo ""
@@ -318,7 +318,7 @@ echo ""
 if wrangler pages deploy web/ --project-name "$PROJECT_NAME" --branch "$GITHUB_BRANCH"; then
     print_ok "部署完成。"
 else
-    die "wrangler pages deploy 失敗。請參閱 $DOCS_SETUP。"
+    die "wrangler pages deploy 失敗。請參閱 ${DOCS_SETUP}。"
 fi
 
 # ---------------------------------------------------------------------------
@@ -351,5 +351,5 @@ echo ""
 echo "  維修系統 URL：$SITE_URL"
 echo "  管理員可使用剛才設定的密碼登入。"
 echo ""
-echo "  若有問題，請參閱：$DOCS_SETUP"
+echo "  若有問題，請參閱：${DOCS_SETUP}"
 echo ""
