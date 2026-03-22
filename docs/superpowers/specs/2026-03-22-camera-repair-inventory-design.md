@@ -32,7 +32,7 @@ data/
   - `OTH` — Other (其他)
 - **YYYYMMDD**: received date
 - **MODEL**: model name with spaces and special characters stripped (e.g. `EOS R5` → `EOSR5`, `SEL 24-70 GM` → `SEL2470GM`). Entered manually by the shop.
-- **NNN**: zero-padded daily sequence number
+- **NNN**: zero-padded daily sequence number. `create-item.sh` determines the next number by scanning `data/repairs/` for existing directories matching the same type+date+model prefix and incrementing.
 
 ### item.md Structure
 
@@ -91,14 +91,14 @@ If frontmatter fields are missing or body sections are malformed, the parser exi
 Normal flow:
 
 ```
-received → not_started → in_progress → testing → done → delivered
+not_started → in_progress → testing → done → delivered
 ```
 
 `ice_box` is an intentional hold state — any active status can move to `ice_box` and back. No strict transition enforcement; the UI shows contextual options.
 
-Setting status to `delivered` automatically sets `delivered_date`.
+New items are created with status `not_started`. Setting status to `delivered` automatically sets `delivered_date`.
 
-**Status values:** `received`, `not_started`, `in_progress`, `testing`, `done`, `delivered`, `ice_box`
+**Status values:** `not_started`, `in_progress`, `testing`, `done`, `delivered`, `ice_box`
 
 ### Owner Registry
 
@@ -146,7 +146,7 @@ Python standard library only (`http.server` with a custom handler). No Flask, no
 - POST `/api/deliver` — calls `update-item.sh` to set status=delivered
 - GET `/api/open-logs/<id>` — runs `open` to launch Finder on the item's logs folder
 - GET `/api/owners` — returns `data/owners.json` for autocomplete
-- GET `/api/items` — returns all items as JSON (for entry page search)
+- GET `/api/items` — returns all items as JSON for entry page search (frontmatter fields only, no body sections)
 
 **`server.sh` behavior:**
 
@@ -193,7 +193,7 @@ A single HTML form serving both create and edit modes.
 - 維修描述 (textarea)
 - Initial cost estimate (optional: amount + note)
 
-On submit → `create-item.sh` generates the ID, creates directory + item.md + logs/, sets status to `received`.
+On submit → `create-item.sh` generates the ID, creates directory + item.md + logs/, sets status to `not_started`.
 
 **Edit mode** — all create fields plus:
 
