@@ -36,11 +36,13 @@ Sequence number lookups (`NNN`) scan only the relevant `YYYY/MM/` directory via 
 
 ### Generated data directory
 
-`_data/` contains all build-generated files. Nothing in `_data/` is source-controlled — it is produced by `build.sh` at build time.
+`web/_data/` contains all build-generated files. It lives inside the Pages output directory (`web/`) so that Cloudflare Workers can read it via `env.ASSETS.fetch()`. Nothing in `web/_data/` is source-controlled — it is produced by `build.sh` at build time.
+
+The middleware blocks direct browser access to `web/_data/` paths (requires shop password). Workers read these files internally via the ASSETS binding, bypassing the middleware.
 
 ```
-_data/
-  published.json                    # item ID → password hash (Worker-only)
+web/_data/
+  published.json                    # item ID → salted password hash (Worker-only)
   items.json                        # all items frontmatter (lightweight listing)
   owners.json                       # owner registry (generated from all items)
   items/
@@ -50,9 +52,9 @@ _data/
 ```
 
 - `items.json` — frontmatter only, used for search/listing on the entry page (replaces `GET /api/items`)
-- `owners.json` — replaces the former `data/owners.json` (now generated at build time, not source-controlled)
+- `owners.json` — generated at build time from all items' owner fields, deduplicated. For local dev, `update-owners.sh` writes to `data/owners.json` as before; the build script generates `web/_data/owners.json` separately
 - `items/{id}.json` — full item content including body sections, fetched on demand when editing (replaces `GET /api/item/<id>/raw`)
-- `published.json` — maps published item IDs to password hashes, consumed only by the Worker (not publicly served)
+- `published.json` — maps published item IDs to salted password hashes, consumed only by the Worker via `env.ASSETS.fetch()`. Although technically inside `web/`, the middleware requires shop authentication for `/_data/*` paths, so it is not publicly accessible
 
 ### Cloudflare Pages Functions
 
@@ -79,20 +81,26 @@ camera-repair-store-inventory/
 │                   └── logs/
 ├── scripts/
 │   ├── build.sh                   # main build entry point for Cloudflare Pages
+│   ├── migrate-directory.sh       # one-time migration: flat → YYYY/MM/ nesting
 │   ├── generate-dashboard.sh      # existing, extended
 │   ├── generate-customer-pages.sh # new: builds published item pages
-│   ├── generate-manifest.sh       # new: builds _data/published.json
+│   ├── generate-manifest.sh       # new: builds web/_data/published.json
 │   ├── parse-item.sh              # existing
 │   ├── create-item.sh             # existing (updated for new dir structure)
 │   ├── update-item.sh             # existing (updated for new dir structure)
-│   ├── update-owners.sh           # existing (output moved to _data/)
+│   ├── update-owners.sh           # existing (local dev: data/owners.json, build: web/_data/)
 │   ├── server.sh                  # kept for local dev
-│   └── server.py                  # kept for local dev
+│   └── server.py                  # kept for local dev (updated for nested dirs)
 ├── web/
 │   ├── entry.html
 │   ├── dashboard.html             # generated at build time
 │   ├── customer/                  # generated: one HTML per published item
 │   │   └── {ITEM_ID}.html
+│   ├── _data/                     # build-generated, not source-controlled
+│   │   ├── published.json
+│   │   ├── items.json
+│   │   ├── owners.json
+│   │   └── items/
 │   └── static/
 │       ├── style.css
 │       ├── entry.js
@@ -104,11 +112,6 @@ camera-repair-store-inventory/
 │   │   └── update.js
 │   └── item/
 │       └── [id].js
-├── _data/                         # build-generated, not source-controlled
-│   ├── published.json
-│   ├── items.json
-│   ├── owners.json
-│   └── items/
 ├── docs/
 │   ├── format.md
 │   ├── cloud-architecture.md      # reusable architecture reference
@@ -175,13 +178,14 @@ The file is the source of truth — if someone manually sets `page_password` in 
 ### Password sources
 
 - **Shop password:** `SHOP_PASSWORD` environment variable (set via `wrangler secret put`)
-- **Customer passwords:** at build time, `generate-manifest.sh` reads each item's `page_password`, hashes it (SHA-256), and writes to `_data/published.json`:
+- **Customer passwords:** at build time, `generate-manifest.sh` reads each item's `page_password`, generates a random salt, hashes with SHA-256 (using `shasum -a 256` for macOS compatibility), and writes to `web/_data/published.json`:
   ```json
   {
-    "CAM-20260322-EOS-R5-001": "sha256:abc...",
-    "LENS-20260315-SEL-24-70-GM-001": "sha256:def..."
+    "CAM-20260322-EOS-R5-001": { "salt": "random-hex-string", "hash": "sha256:abc..." },
+    "LENS-20260315-SEL-24-70-GM-001": { "salt": "random-hex-string", "hash": "sha256:def..." }
   }
   ```
+  Salted hashes are required because passwords often default to phone numbers, which have a small keyspace vulnerable to brute-force against plain SHA-256.
 
 ## Build Pipeline
 
@@ -189,11 +193,11 @@ Cloudflare Pages build command: `./scripts/build.sh`
 
 `build.sh` orchestrates in order:
 
-1. **Parse all items** — walk `data/repairs/YYYY/MM/*/item.md`, run `parse-item.sh` on each, collect frontmatter JSON into `_data/items.json`, write full item JSON to `_data/items/{id}.json`
-2. **Generate owners** — scan all items, deduplicate `{name, contact}` pairs, write to `_data/owners.json`
+1. **Parse all items** — walk `data/repairs/YYYY/MM/*/item.md`, run `parse-item.sh` on each, collect frontmatter JSON into `web/_data/items.json`, write full item JSON to `web/_data/items/{id}.json`
+2. **Generate owners** — scan all items, deduplicate `{name, contact}` pairs, write to `web/_data/owners.json`
 3. **Generate dashboard** — run `generate-dashboard.sh` (outputs `web/dashboard.html`)
 4. **Generate customer pages** — for each item where `page_password` is non-empty AND status is not `delivered`, generate `web/customer/{ITEM_ID}.html` with item details (strips owner_name and owner_contact)
-5. **Generate manifest** — for each published item, hash `page_password` and write to `_data/published.json`
+5. **Generate manifest** — for each published item, generate a random salt, hash `salt + page_password` with SHA-256 (via `shasum -a 256` for macOS compatibility), write to `web/_data/published.json`
 
 **Output directory** (Cloudflare Pages serves): `web/`
 
@@ -201,17 +205,18 @@ Cloudflare Pages build command: `./scripts/build.sh`
 
 ### `functions/_middleware.js` — shop admin gate
 
-- Applies to all routes except `/item/*` and `/_data/published.json`
-- Checks `shop_session` cookie → valid? pass through : show password prompt
-- Validates against `SHOP_PASSWORD` env var
+- Applies to all routes except `/item/*`
+- On POST to the password form endpoint: validates submitted password against `SHOP_PASSWORD` env var, sets cookie or re-prompts (handles its own auth POST before the cookie check)
+- On all other requests: checks `shop_session` cookie → valid? pass through : show password prompt
+- This means `/_data/*` paths (items.json, owners.json, etc.) require shop authentication — they contain owner data and are not publicly accessible
 - Sets HttpOnly, Secure, SameSite=Strict cookie, 24h expiry
 
 ### `functions/item/[id].js` — customer page gate
 
-- Reads `_data/published.json` to find item
+- Reads `web/_data/published.json` via `env.ASSETS.fetch()` (bypasses middleware)
 - Not found → 404
 - Checks `customer_session_{id}` cookie → valid? serve `web/customer/{id}.html` : show password prompt
-- Validates password hash against manifest
+- Validates password: hashes submitted password with the item's stored salt, compares against stored hash
 - Sets per-item cookie, 7-day expiry
 
 ### `functions/api/create.js` — create item
@@ -223,16 +228,18 @@ Cloudflare Pages build command: `./scripts/build.sh`
   - Increments to next sequence number
 - Builds `item.md` content (frontmatter + body)
 - Commits new file to repo via GitHub API (using `GITHUB_TOKEN` env var)
+- **Race condition handling:** uses GitHub API's "create file" endpoint which fails if the path already exists. On conflict (409), retries with the next sequence number (max 3 retries)
 - Returns new item ID to client
 - Push triggers Cloudflare Pages rebuild
 
 ### `functions/api/update.js` — update item
 
 - Receives form data + item ID
-- Reads current `item.md` via GitHub API
+- Reads current `item.md` via GitHub API (includes file SHA)
 - Applies changes (field updates, cost append, status change)
 - If status → `delivered`, clears `page_password`
-- Commits updated file to repo via GitHub API
+- Commits updated file to repo via GitHub API (provides SHA for conditional update — fails if file was modified concurrently)
+- The existing `POST /api/deliver` endpoint is consolidated here — delivering is an update with `status: delivered`
 - Returns success, rebuild triggered
 
 ## Shop UI Changes
@@ -245,7 +252,7 @@ Cloudflare Pages build command: `./scripts/build.sh`
   你的維修單：{URL}，請使用 {Password} 作為密碼進行查看
   ```
   With a copy button for easy sharing with customers.
-- **Data fetching** — switches from API calls to static JSON fetches (`_data/items.json`, `_data/items/{id}.json`, `_data/owners.json`)
+- **Data fetching** — switches from API calls to static JSON fetches (`/_data/items.json`, `/_data/items/{id}.json`, `/_data/owners.json`)
 - **Form submit** — POSTs to `/api/create` or `/api/update` (Worker endpoints) instead of the Python server
 
 ### Dashboard
@@ -265,18 +272,24 @@ Cloudflare Pages build command: `./scripts/build.sh`
 
 ### Production (Cloudflare Pages)
 
-- Build: `./scripts/build.sh` generates `_data/`, `web/customer/`, `web/dashboard.html`
+- Build: `./scripts/build.sh` generates `web/_data/`, `web/customer/`, `web/dashboard.html`
 - Serve: Cloudflare Pages serves `web/` as static, Functions handle auth + API
 - Mutations: Worker commits via GitHub API → push → rebuild
 
-### Local dev (unchanged workflow)
+### Local dev (updated for new directory structure)
 
 - `./scripts/server.sh` starts Python server on port 8787
 - `create-item.sh` / `update-item.sh` work directly (with hooks, or REPL mode)
 - No Workers, no GitHub API — direct file operations
 - Run `./scripts/build.sh` locally to preview the static output
+- `server.py` updated to scan nested `data/repairs/YYYY/MM/*/` directories
+- `update-owners.sh` writes to `data/owners.json` for local dev (build script writes to `web/_data/owners.json`)
 
 The bash scripts and local server remain fully functional. Cloudflare is an additional deployment target, not a replacement for the local workflow.
+
+### Migration
+
+`scripts/migrate-directory.sh` — one-time script to restructure existing flat `data/repairs/{ITEM_ID}/` into `data/repairs/YYYY/MM/{ITEM_ID}/` based on each item's `received_date` frontmatter field. Run once before switching to the new structure.
 
 ## Environment Variables
 
@@ -287,20 +300,33 @@ Set via Cloudflare dashboard or `wrangler secret put`:
 | `SHOP_PASSWORD` | Admin password for entry/dashboard |
 | `GITHUB_TOKEN` | Fine-grained PAT (Contents: Read+Write, single repo) |
 | `GITHUB_REPO` | Repository in `owner/repo` format |
+| `GITHUB_BRANCH` | Target branch for commits (default: `main`) |
+| `SITE_URL` | Base URL for customer page links (e.g., `https://myshop.pages.dev`) |
+
+## Rebuild Latency
+
+After a create/update mutation, the GitHub commit triggers a Cloudflare Pages rebuild. This typically takes 30 seconds to a few minutes. During this window, the dashboard and item data are stale.
+
+**Expected UX:**
+- After form submit, the entry page shows a success message: "儲存成功，頁面資料將在數分鐘內更新" (Saved successfully, page data will update in a few minutes)
+- The entry form resets (create) or stays on the current item (update) — no redirect to dashboard
+- The shop owner understands that dashboard/search data reflects the last build, not real-time state
 
 ## Deliverables
 
 - `functions/` — Cloudflare Pages Functions (middleware, API, customer gate)
 - `scripts/build.sh` — build orchestrator
+- `scripts/migrate-directory.sh` — one-time migration script (flat → YYYY/MM/ nesting)
 - `scripts/generate-customer-pages.sh` — customer page generator
 - `scripts/generate-manifest.sh` — published items manifest generator
 - `wrangler.toml` — Cloudflare Pages configuration
 - `docs/cloud-architecture.md` — reusable reference for route-based Pages Functions architecture
 - `docs/cloudflare-setup.md` — step-by-step guide for non-technical users (includes GitHub token creation with minimum scope)
-- Updated `CLAUDE.md` — local dev vs production context
+- Updated `CLAUDE.md` — local dev vs production context, hook architecture clarification
 - Updated `README.md` — project overview with deployment info
 - Updated `scripts/create-item.sh` — new directory structure (`YYYY/MM/`)
 - Updated `scripts/update-item.sh` — `page_password` field handling, clear on delivered
 - Updated `scripts/parse-item.sh` — validate new `page_password` field
+- Updated `scripts/server.py` — scan nested `YYYY/MM/` directories for local dev
 - Updated `web/entry.html` + `entry.js` — publish UI, static data fetching, Worker API calls
-- Updated `docs/format.md` — document `page_password` field
+- Updated `docs/format.md` — document `page_password` field and `YYYY/MM/` directory layout
