@@ -18,7 +18,7 @@ OWNERS_FILE="$DATA_DIR/owners.json"
 # Use Python to collect, deduplicate, and write JSON
 # (bash 3.2 lacks associative arrays needed for dedup)
 python3 -c "
-import sys, json, os, subprocess
+import sys, json, os, subprocess, glob
 
 repairs_dir = sys.argv[1]
 owners_file = sys.argv[2]
@@ -28,10 +28,7 @@ seen = set()
 owners = []
 
 if os.path.isdir(repairs_dir):
-    for name in sorted(os.listdir(repairs_dir)):
-        item_md = os.path.join(repairs_dir, name, 'item.md')
-        if not os.path.isfile(item_md):
-            continue
+    for item_md in sorted(glob.glob(os.path.join(repairs_dir, '**', 'item.md'), recursive=True)):
         result = subprocess.run([parse_script, item_md], capture_output=True, text=True)
         if result.returncode != 0:
             continue

@@ -13,7 +13,7 @@ DATA_DIR="${1:-$SCRIPT_DIR/../data}"
 WEB_DIR="${2:-$SCRIPT_DIR/../web}"
 
 python3 -c "
-import sys, json, os, subprocess, html
+import sys, json, os, subprocess, html, glob
 
 repairs_dir = os.path.join(sys.argv[1], 'repairs')
 web_dir = sys.argv[2]
@@ -28,10 +28,7 @@ groups = {
 }
 
 if os.path.isdir(repairs_dir):
-    for name in sorted(os.listdir(repairs_dir)):
-        item_md = os.path.join(repairs_dir, name, 'item.md')
-        if not os.path.isfile(item_md):
-            continue
+    for item_md in sorted(glob.glob(os.path.join(repairs_dir, '**', 'item.md'), recursive=True)):
         result = subprocess.run([parse_script, item_md], capture_output=True, text=True)
         if result.returncode != 0:
             continue

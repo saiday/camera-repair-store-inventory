@@ -78,10 +78,22 @@ test_same_name_different_contact() {
   teardown
 }
 
+test_owners_from_nested_dirs() {
+  setup
+  "$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
+    --category camera --brand Canon --model Test --serial 123 \
+    --owner-name "王小明" --owner-contact "0912-345-678" --description "test" --date 2026-03-22
+  "$SCRIPT_DIR/update-owners.sh" "$TEST_TMP/data"
+  OWNERS="$(cat "$TEST_TMP/data/owners.json")"
+  assert_contains "$OWNERS" "王小明" "owner found from nested dir"
+  teardown
+}
+
 # --- Run all tests ---
 echo "=== update-owners.sh tests ==="
 run_test "builds owners from items" test_builds_owners
 run_test "deduplicates on name+contact" test_dedup
 run_test "same name different contact" test_same_name_different_contact
+run_test "owners from nested dirs" test_owners_from_nested_dirs
 
 print_results

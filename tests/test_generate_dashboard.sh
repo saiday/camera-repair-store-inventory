@@ -83,10 +83,23 @@ test_empty_state() {
   teardown
 }
 
+test_dashboard_from_nested_dirs() {
+  setup
+  mkdir -p "$TEST_TMP/web"
+  "$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
+    --category camera --brand Canon --model Test --serial 123 \
+    --owner-name "王小明" --owner-contact "0912" --description "test" --date 2026-03-22
+  "$SCRIPT_DIR/generate-dashboard.sh" "$TEST_TMP/data" "$TEST_TMP/web"
+  DASHBOARD="$(cat "$TEST_TMP/web/dashboard.html")"
+  assert_contains "$DASHBOARD" "王小明" "owner appears in dashboard from nested dir"
+  teardown
+}
+
 # --- Run all tests ---
 echo "=== generate-dashboard.sh tests ==="
 run_test "generates dashboard.html" test_generates_html
 run_test "groups by status" test_groups_by_status
 run_test "empty state" test_empty_state
+run_test "dashboard from nested dirs" test_dashboard_from_nested_dirs
 
 print_results
