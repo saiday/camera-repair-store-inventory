@@ -13,10 +13,10 @@ Each repair item is a directory under `data/repairs/`:
 ```
 data/
   repairs/
-    CAM-20260322-EOSR5-001/
+    CAM-20260322-EOS-R5-001/
       item.md          # structured Markdown — source of truth
       logs/            # arbitrary files: photos, receipts, notes, etc.
-    LENS-20260322-SEL2470GM-001/
+    LENS-20260322-SEL-24-70-GM-001/
       item.md
       logs/
 ```
@@ -31,7 +31,7 @@ data/
   - `ACCE` — Accessory (配件)
   - `OTH` — Other (其他)
 - **YYYYMMDD**: received date
-- **MODEL**: model name with spaces and special characters stripped (e.g. `EOS R5` → `EOSR5`, `SEL 24-70 GM` → `SEL2470GM`). Entered manually by the shop.
+- **MODEL**: model name normalized for use in directory names. Entered manually by the shop. Normalization rules: spaces become dashes, all other non-alphanumeric ASCII characters are removed, original casing is preserved. Examples: `EOS R5` → `EOS-R5`, `SEL 24-70 GM` → `SEL-24-70-GM`, `Nikon Zfc` → `Nikon-Zfc`.
 - **NNN**: zero-padded daily sequence number. `create-item.sh` determines the next number by scanning `data/repairs/` for existing directories matching the same type+date+model prefix and incrementing.
 
 ### item.md Structure
@@ -40,7 +40,7 @@ YAML frontmatter for machine-parseable fields, Markdown body for structured cont
 
 ```markdown
 ---
-id: CAM-20260322-EOSR5-001
+id: CAM-20260322-EOS-R5-001
 category: camera
 brand: Canon
 model: EOS R5
@@ -102,7 +102,7 @@ New items are created with status `not_started`. Setting status to `delivered` a
 
 ### Owner Registry
 
-`data/owners.json` — an auto-maintained list of `{name, contact}` pairs, deduplicated. Updated by a hook script (`update-owners.sh`) that runs after every item create/update. Used for autocomplete on the entry page.
+`data/owners.json` — an auto-maintained list of `{name, contact}` pairs. Deduplicated on the combination of `name` and `contact` (both must match to be considered the same entry). Updated by a hook script (`update-owners.sh`) that runs after every item create/update. Used for autocomplete on the entry page.
 
 ### Logs Folder
 
@@ -124,10 +124,9 @@ camera-repair-store-inventory/
     update-item.sh             # updates existing item's item.md
     parse-item.sh              # shared parser/validator for item.md
     update-owners.sh           # hook: syncs owners.json after create/update
-    generate-entry.sh          # generates entry/edit HTML page
     generate-dashboard.sh      # generates kanban dashboard HTML
   web/
-    entry.html                 # generated: form for creating/editing items
+    entry.html                 # static: form for creating/editing items (loads data via JS)
     dashboard.html             # generated: kanban status board
     static/                    # CSS, JS assets
   docs/
@@ -138,6 +137,8 @@ camera-repair-store-inventory/
 
 Python standard library only (`http.server` with a custom handler). No Flask, no pip, no venv. `server.sh` simply runs `python3 scripts/server.py`. Works on any Mac out of the box.
 
+Runs on fixed port **8787**.
+
 **Responsibilities:**
 
 - Serve static files from `web/`
@@ -147,12 +148,16 @@ Python standard library only (`http.server` with a custom handler). No Flask, no
 - GET `/api/open-logs/<id>` — runs `open` to launch Finder on the item's logs folder
 - GET `/api/owners` — returns `data/owners.json` for autocomplete
 - GET `/api/items` — returns all items as JSON for entry page search (frontmatter fields only, no body sections)
+- GET `/api/item/<id>/raw` — returns the raw `item.md` content for the entry page edit mode (JS parses frontmatter + body client-side)
 
 **`server.sh` behavior:**
 
 1. Check Python 3 is available (macOS ships with it)
-2. Start the server via `python3 scripts/server.py`
-3. Clear error messages if anything fails (no Python 3, port in use, etc.)
+2. If port 8787 is already in use, kill the existing process
+3. Start the server via `python3 scripts/server.py`
+4. Clear error messages if anything fails (no Python 3, etc.)
+
+**Design constraint:** This is a single-user system. Concurrent access from multiple browsers/tabs is not protected against. Last write wins.
 
 ### Data Flow
 
@@ -171,16 +176,20 @@ Browser form submit
 `parse-item.sh` is the single source of truth for reading `item.md`. Every script that reads an item goes through it. On parse failure, it exits with:
 
 ```
-ERROR: item.md parse failed — missing required field 'serial_number' in CAM-20260322-EOSR5-001
+ERROR: item.md parse failed — missing required field 'serial_number' in CAM-20260322-EOS-R5-001
 ```
 
 ## Web Interfaces
 
+Both pages share a **toolbar** at the top with navigation links to each page (維修單 / 看板). The dashboard is the default landing page (`/`).
+
 ### Entry Page (建立/編輯維修單)
 
-A single HTML form serving both create and edit modes.
+A static HTML page (not generated) serving both create and edit modes. Loads data dynamically via JS API calls.
 
-**Search bar** at the top: type to filter existing items by ID, model, or owner name. Select an item → form fills in edit mode. Data loaded as JSON from `/api/items` on page open. Client-side filtering (under 30 active items).
+**Deep linking:** Edit mode is accessed via `entry.html?id={ITEM_ID}`. The JS reads the query parameter, fetches the raw `item.md` from `/api/item/<id>/raw`, parses frontmatter + body client-side, and populates the form.
+
+**Search bar** at the top: type to filter existing items by ID, model, or owner name. Select an item → navigates to `entry.html?id={ITEM_ID}`. Data loaded as JSON from `/api/items` on page open. Client-side filtering (under 30 active items).
 
 **Create mode** — fields:
 
@@ -198,7 +207,7 @@ On submit → `create-item.sh` generates the ID, creates directory + item.md + l
 **Edit mode** — all create fields plus:
 
 - Status (dropdown with contextual options)
-- Add cost entry (amount + note — appends row to cost table)
+- Editable cost fields (amount + reason). Changing the cost auto-generates a cost change log entry appended to the 費用紀錄 table in item.md.
 - Delivered date (auto-set when marking as delivered)
 - "開啟維修記錄資料夾" button — opens the item's logs/ folder in Finder
 
@@ -227,11 +236,11 @@ Kanban board layout with columns per active status.
 - Item ID
 - Model name
 - Owner name
-- Days since received
+- Days since received — computed client-side in JS using `received_date` stored as a `data-received` attribute on each card, so the count is always accurate without requiring dashboard regeneration
 
-**Card interaction:** Click a card → navigate to entry page in edit mode for that item.
+**Card interaction:** Click a card → navigate to `entry.html?id={ITEM_ID}` (edit mode).
 
-**Regeneration:** Dashboard HTML is regenerated after every data mutation, so it's always current when loaded.
+**Regeneration:** Dashboard HTML is regenerated after every data mutation, so item data is always current when loaded.
 
 ## UI Language
 
