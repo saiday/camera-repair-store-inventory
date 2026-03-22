@@ -88,6 +88,21 @@
         </div>
       </fieldset>
 
+      <fieldset id="publish-section" class="publish-section" style="display:none">
+        <legend>客戶查看頁面</legend>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="page-password">頁面密碼</label>
+            <input type="text" id="page-password" placeholder="設定密碼以發佈客戶頁面">
+          </div>
+          <button type="button" id="publish-btn" class="secondary-btn">使用聯絡方式作為密碼</button>
+        </div>
+        <div id="share-message" style="display:none" class="share-message">
+          <span id="share-text"></span>
+          <button type="button" id="copy-share-btn" class="icon-btn">複製</button>
+        </div>
+      </fieldset>
+
       <div class="form-actions">
         <button type="button" id="open-logs-btn" style="display:none">開啟維修記錄資料夾</button>
         <button type="submit" id="submit-btn">建立維修單</button>
