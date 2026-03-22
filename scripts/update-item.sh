@@ -14,7 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- Parse arguments ---
 ITEM_DIR="" STATUS="" OWNER_NAME="" OWNER_CONTACT="" DESCRIPTION="" BRAND="" SERIAL=""
-COST_AMOUNT="" COST_NOTE="" COST_DATE="" DELIVERED_DATE=""
+COST_AMOUNT="" COST_NOTE="" COST_DATE="" DELIVERED_DATE="" NO_HOOKS=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -29,6 +29,7 @@ while [[ $# -gt 0 ]]; do
     --cost-note) COST_NOTE="$2"; shift 2 ;;
     --cost-date) COST_DATE="$2"; shift 2 ;;
     --delivered-date) DELIVERED_DATE="$2"; shift 2 ;;
+    --no-hooks) NO_HOOKS="1"; shift ;;
     *) echo "ERROR: Unknown argument: $1" >&2; exit 1 ;;
   esac
 done
@@ -118,3 +119,11 @@ with open(item_file, "w") as f:
 
 # --- Validate ---
 "$SCRIPT_DIR/parse-item.sh" "$ITEM_FILE" > /dev/null
+
+# --- Run hooks (unless --no-hooks) ---
+if [[ -z "$NO_HOOKS" ]]; then
+  # Derive data-dir from item-dir (two levels up: repairs/<id>/item.md → data/)
+  HOOKS_DATA_DIR="$(cd "$ITEM_DIR/../.." && pwd)"
+  "$SCRIPT_DIR/update-owners.sh" "$HOOKS_DATA_DIR" &
+  "$SCRIPT_DIR/generate-dashboard.sh" "$HOOKS_DATA_DIR" &
+fi

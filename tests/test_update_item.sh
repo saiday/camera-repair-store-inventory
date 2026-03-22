@@ -42,6 +42,7 @@ test_update_status() {
   item_dir="$(create_test_item)"
 
   "$SCRIPT_DIR/update-item.sh" \
+    --no-hooks \
     --item-dir "$item_dir" \
     --status "in_progress"
 
@@ -58,6 +59,7 @@ test_update_owner() {
   item_dir="$(create_test_item)"
 
   "$SCRIPT_DIR/update-item.sh" \
+    --no-hooks \
     --item-dir "$item_dir" \
     --owner-name "李大華" \
     --owner-contact "IG: @lidahua"
@@ -76,6 +78,7 @@ test_add_cost() {
   item_dir="$(create_test_item)"
 
   "$SCRIPT_DIR/update-item.sh" \
+    --no-hooks \
     --item-dir "$item_dir" \
     --cost-amount "4500" \
     --cost-note "需更換快門組件" \
@@ -95,6 +98,7 @@ test_delivered_sets_date() {
   item_dir="$(create_test_item)"
 
   "$SCRIPT_DIR/update-item.sh" \
+    --no-hooks \
     --item-dir "$item_dir" \
     --status "delivered" \
     --delivered-date "2026-04-01"
@@ -113,12 +117,37 @@ test_update_description() {
   item_dir="$(create_test_item)"
 
   "$SCRIPT_DIR/update-item.sh" \
+    --no-hooks \
     --item-dir "$item_dir" \
     --description "觀景窗有霧氣，快門異音，需拆機檢查"
 
   local content
   content="$(cat "$item_dir/item.md")"
   assert_contains "$content" "觀景窗有霧氣，快門異音，需拆機檢查" "description should be updated"
+  teardown
+}
+
+# --- Test: --no-hooks skips hook scripts ---
+test_no_hooks_flag() {
+  setup
+  local item_dir
+  item_dir="$(create_test_item)"
+
+  "$SCRIPT_DIR/update-item.sh" \
+    --no-hooks \
+    --item-dir "$item_dir" \
+    --status "in_progress"
+
+  # Update should succeed
+  local output
+  output="$("$SCRIPT_DIR/parse-item.sh" "$item_dir/item.md")"
+  assert_contains "$output" '"status": "in_progress"' "status should be updated"
+
+  # owners.json should still be empty
+  local owners
+  owners="$(cat "$TEST_TMP/data/owners.json")"
+  assert_eq "[]" "$owners" "owners.json should remain empty when --no-hooks"
+
   teardown
 }
 
@@ -129,5 +158,6 @@ run_test "update owner" test_update_owner
 run_test "add cost entry" test_add_cost
 run_test "delivered sets date" test_delivered_sets_date
 run_test "update description" test_update_description
+run_test "--no-hooks flag" test_no_hooks_flag
 
 print_results
