@@ -14,7 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- Parse arguments ---
 DATA_DIR="" CATEGORY="" BRAND="" MODEL="" SERIAL="" OWNER_NAME="" OWNER_CONTACT=""
-DESCRIPTION="" DATE="" COST_AMOUNT="" COST_NOTE=""
+DESCRIPTION="" DATE="" COST_AMOUNT="" COST_NOTE="" NO_HOOKS=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -29,6 +29,7 @@ while [[ $# -gt 0 ]]; do
     --date) DATE="$2"; shift 2 ;;
     --cost-amount) COST_AMOUNT="$2"; shift 2 ;;
     --cost-note) COST_NOTE="$2"; shift 2 ;;
+    --no-hooks) NO_HOOKS="1"; shift ;;
     *) echo "ERROR: Unknown argument: $1" >&2; exit 1 ;;
   esac
 done
@@ -115,3 +116,10 @@ fi
 
 # --- Output the item ID ---
 echo "$ITEM_ID"
+
+# --- Run hooks (unless --no-hooks) ---
+if [[ -z "$NO_HOOKS" ]]; then
+  "$SCRIPT_DIR/update-owners.sh" "$DATA_DIR" &
+  # generate-dashboard.sh defaults web-dir to $SCRIPT_DIR/../web when not passed
+  "$SCRIPT_DIR/generate-dashboard.sh" "$DATA_DIR" &
+fi

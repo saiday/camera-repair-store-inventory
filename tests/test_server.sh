@@ -80,7 +80,7 @@ test_create_item() {
 # --- Test: GET /api/items returns item list ---
 test_get_items() {
   setup
-  "$SCRIPT_DIR/create-item.sh" --data-dir "$TEST_TMP/data" \
+  "$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
     --category camera --brand Canon --model "EOS R5" \
     --serial "001" --owner-name "王小明" --owner-contact "0912" \
     --description "Test" --date "2026-03-22" > /dev/null
@@ -95,7 +95,7 @@ test_get_items() {
 # --- Test: GET /api/owners returns owners ---
 test_get_owners() {
   setup
-  "$SCRIPT_DIR/create-item.sh" --data-dir "$TEST_TMP/data" \
+  "$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
     --category camera --brand Canon --model "EOS R5" \
     --serial "001" --owner-name "王小明" --owner-contact "0912" \
     --description "Test" --date "2026-03-22" > /dev/null
@@ -111,7 +111,7 @@ test_get_owners() {
 # --- Test: GET /api/item/<id>/raw returns raw markdown ---
 test_get_item_raw() {
   setup
-  "$SCRIPT_DIR/create-item.sh" --data-dir "$TEST_TMP/data" \
+  "$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
     --category camera --brand Canon --model "EOS R5" \
     --serial "001" --owner-name "王小明" --owner-contact "0912" \
     --description "Test" --date "2026-03-22" > /dev/null

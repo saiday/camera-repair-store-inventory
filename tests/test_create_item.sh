@@ -10,6 +10,7 @@ test_create_basic() {
   setup
   local output
   output="$("$SCRIPT_DIR/create-item.sh" \
+    --no-hooks \
     --data-dir "$TEST_TMP/data" \
     --category camera \
     --brand Canon \
@@ -43,6 +44,7 @@ test_model_normalization() {
   setup
   local output
   output="$("$SCRIPT_DIR/create-item.sh" \
+    --no-hooks \
     --data-dir "$TEST_TMP/data" \
     --category lens \
     --brand Sony \
@@ -63,6 +65,7 @@ test_sequence_increment() {
   setup
   # Create first item
   "$SCRIPT_DIR/create-item.sh" \
+    --no-hooks \
     --data-dir "$TEST_TMP/data" \
     --category camera --brand Canon --model "EOS R5" \
     --serial "001" --owner-name "A" --owner-contact "a" \
@@ -71,6 +74,7 @@ test_sequence_increment() {
   # Create second item with same type/date/model
   local output
   output="$("$SCRIPT_DIR/create-item.sh" \
+    --no-hooks \
     --data-dir "$TEST_TMP/data" \
     --category camera --brand Canon --model "EOS R5" \
     --serial "002" --owner-name "B" --owner-contact "b" \
@@ -84,6 +88,7 @@ test_sequence_increment() {
 test_initial_cost() {
   setup
   "$SCRIPT_DIR/create-item.sh" \
+    --no-hooks \
     --data-dir "$TEST_TMP/data" \
     --category camera --brand Canon --model "EOS R5" \
     --serial "001" --owner-name "A" --owner-contact "a" \
@@ -101,17 +106,59 @@ test_category_prefixes() {
   setup
   local output
 
-  output="$("$SCRIPT_DIR/create-item.sh" --data-dir "$TEST_TMP/data" \
+  output="$("$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
     --category accessory --brand Peak --model "Slide Lite" \
     --serial "A1" --owner-name "A" --owner-contact "a" \
     --description "T" --date "2026-03-22")"
   assert_contains "$output" "ACCE-" "accessory should use ACCE prefix"
 
-  output="$("$SCRIPT_DIR/create-item.sh" --data-dir "$TEST_TMP/data" \
+  output="$("$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
     --category misc --brand Other --model "Widget" \
     --serial "M1" --owner-name "A" --owner-contact "a" \
     --description "T" --date "2026-03-22")"
   assert_contains "$output" "OTH-" "misc should use OTH prefix"
+
+  teardown
+}
+
+# --- Test: --no-hooks skips hook scripts ---
+test_no_hooks_flag() {
+  setup
+  "$SCRIPT_DIR/create-item.sh" \
+    --no-hooks \
+    --data-dir "$TEST_TMP/data" \
+    --category camera --brand Canon --model "EOS R5" \
+    --serial "001" --owner-name "王小明" --owner-contact "0912" \
+    --description "Test" --date "2026-03-22" > /dev/null
+
+  # Item should be created
+  assert_dir_exists "$TEST_TMP/data/repairs/CAM-20260322-EOS-R5-001" "item should exist"
+
+  # owners.json should still be empty (hooks were skipped)
+  local owners
+  owners="$(cat "$TEST_TMP/data/owners.json")"
+  assert_eq "[]" "$owners" "owners.json should remain empty when --no-hooks"
+
+  teardown
+}
+
+# --- Test: hooks run by default (owners.json gets populated) ---
+test_hooks_run_by_default() {
+  setup
+
+  "$SCRIPT_DIR/create-item.sh" \
+    --data-dir "$TEST_TMP/data" \
+    --category camera --brand Canon --model "EOS R5" \
+    --serial "001" --owner-name "王小明" --owner-contact "0912" \
+    --description "Test" --date "2026-03-22" > /dev/null
+
+  # Wait for background hooks to finish
+  sleep 2
+
+  # owners.json should now contain the owner
+  local owners
+  owners="$(cat "$TEST_TMP/data/owners.json")"
+  assert_contains "$owners" "王小明" "owners.json should be updated by hooks"
 
   teardown
 }
@@ -123,5 +170,7 @@ run_test "model normalization" test_model_normalization
 run_test "sequence increment" test_sequence_increment
 run_test "initial cost entry" test_initial_cost
 run_test "category prefixes" test_category_prefixes
+run_test "--no-hooks flag" test_no_hooks_flag
+run_test "hooks run by default" test_hooks_run_by_default
 
 print_results
