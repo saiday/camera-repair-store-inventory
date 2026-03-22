@@ -9,10 +9,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-[[ $# -eq 2 ]] || { echo "ERROR: Usage: generate-dashboard.sh <data-dir> <web-dir>" >&2; exit 1; }
-
-DATA_DIR="$1"
-WEB_DIR="$2"
+DATA_DIR="${1:-$SCRIPT_DIR/../data}"
+WEB_DIR="${2:-$SCRIPT_DIR/../web}"
 
 python3 -c "
 import sys, json, os, subprocess, html
