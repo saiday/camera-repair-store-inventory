@@ -12,37 +12,134 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# --- Parse arguments ---
-ITEM_DIR="" STATUS="" OWNER_NAME="" OWNER_CONTACT="" DESCRIPTION="" BRAND="" SERIAL=""
-COST_AMOUNT="" COST_NOTE="" COST_DATE="" DELIVERED_DATE="" NO_HOOKS=""
+# --- Interactive mode: search and prompt when no args and TTY ---
+if [[ $# -eq 0 && -t 0 ]]; then
+  DATA_DIR="${SCRIPT_DIR}/../data"
+  REPAIRS_DIR="$DATA_DIR/repairs"
 
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --item-dir) ITEM_DIR="$2"; shift 2 ;;
-    --status) STATUS="$2"; shift 2 ;;
-    --owner-name) OWNER_NAME="$2"; shift 2 ;;
-    --owner-contact) OWNER_CONTACT="$2"; shift 2 ;;
-    --description) DESCRIPTION="$2"; shift 2 ;;
-    --brand) BRAND="$2"; shift 2 ;;
-    --serial) SERIAL="$2"; shift 2 ;;
-    --cost-amount) COST_AMOUNT="$2"; shift 2 ;;
-    --cost-note) COST_NOTE="$2"; shift 2 ;;
-    --cost-date) COST_DATE="$2"; shift 2 ;;
-    --delivered-date) DELIVERED_DATE="$2"; shift 2 ;;
-    --no-hooks) NO_HOOKS="1"; shift ;;
-    *) echo "ERROR: Unknown argument: $1" >&2; exit 1 ;;
-  esac
-done
+  printf 'Search: ' >&2
+  read -r SEARCH_QUERY
 
-[[ -n "$ITEM_DIR" ]] || { echo "ERROR: --item-dir is required" >&2; exit 1; }
+  # Direct item ID match — skip search if input is an exact directory name
+  if [[ -d "$REPAIRS_DIR/$SEARCH_QUERY" && -f "$REPAIRS_DIR/$SEARCH_QUERY/item.md" ]]; then
+    ITEM_DIR="$REPAIRS_DIR/$SEARCH_QUERY"
+  else
 
-# Default cost date to today only when a cost entry is being added
-if [[ -n "$COST_AMOUNT" && -n "$COST_NOTE" && -z "$COST_DATE" ]]; then
-  COST_DATE="$(date +%Y-%m-%d)"
+  # Search items by brand, model, owner, or ID (case-insensitive)
+  MATCHES=()
+  MATCH_DIRS=()
+  if [[ -d "$REPAIRS_DIR" ]]; then
+    for dir in "$REPAIRS_DIR"/*/; do
+      [[ -f "$dir/item.md" ]] || continue
+      local_json="$("$SCRIPT_DIR/parse-item.sh" "$dir/item.md" 2>/dev/null)" || continue
+      local_id="$(echo "$local_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['id'])")"
+      local_brand="$(echo "$local_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['brand'])")"
+      local_model="$(echo "$local_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['model'])")"
+      local_owner="$(echo "$local_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['owner_name'])")"
+
+      # Case-insensitive match
+      QUERY_LOWER="$(echo "$SEARCH_QUERY" | tr '[:upper:]' '[:lower:]')"
+      HAYSTACK="$(echo "$local_id $local_brand $local_model $local_owner" | tr '[:upper:]' '[:lower:]')"
+      if [[ "$HAYSTACK" == *"$QUERY_LOWER"* ]]; then
+        MATCHES+=("$local_id — $local_brand $local_model ($local_owner)")
+        MATCH_DIRS+=("${dir%/}")
+      fi
+    done
+  fi
+
+  if [[ ${#MATCHES[@]} -eq 0 ]]; then
+    echo "No items found matching '$SEARCH_QUERY'" >&2
+    exit 1
+  elif [[ ${#MATCHES[@]} -eq 1 ]]; then
+    ITEM_DIR="${MATCH_DIRS[0]}"
+    echo "  ${MATCHES[0]}" >&2
+  else
+    for i in "${!MATCHES[@]}"; do
+      echo "  $((i+1))) ${MATCHES[$i]}" >&2
+    done
+    printf 'Select [1]: ' >&2
+    read -r SELECTION
+    SELECTION="${SELECTION:-1}"
+    IDX=$((SELECTION - 1))
+    if [[ $IDX -lt 0 || $IDX -ge ${#MATCHES[@]} ]]; then
+      echo "Invalid selection" >&2
+      exit 1
+    fi
+    ITEM_DIR="${MATCH_DIRS[$IDX]}"
+  fi
+
+  fi  # end of search branch (direct ID match skips here)
+
+  # Parse current item for display
+  CURRENT_JSON="$("$SCRIPT_DIR/parse-item.sh" "$ITEM_DIR/item.md")"
+  CURRENT_STATUS="$(echo "$CURRENT_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['status'])")"
+  CURRENT_BRAND="$(echo "$CURRENT_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['brand'])")"
+  CURRENT_MODEL="$(echo "$CURRENT_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['model'])")"
+  CURRENT_OWNER="$(echo "$CURRENT_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['owner_name'])")"
+
+  echo "" >&2
+  echo "Current: status=$CURRENT_STATUS, brand=$CURRENT_BRAND, model=$CURRENT_MODEL, owner=$CURRENT_OWNER" >&2
+  printf 'New status (not_started/in_progress/testing/done/delivered/ice_box) [%s]: ' "$CURRENT_STATUS" >&2
+  read -r STATUS
+  STATUS="${STATUS:-}"
+
+  printf 'Add cost? (y/N): ' >&2
+  read -r ADD_COST
+  COST_AMOUNT="" COST_NOTE="" COST_DATE=""
+  if [[ "$ADD_COST" =~ ^[Yy]$ ]]; then
+    printf '  Amount: ' >&2
+    read -r COST_AMOUNT
+    printf '  Note: ' >&2
+    read -r COST_NOTE
+    if [[ -n "$COST_AMOUNT" && -n "$COST_NOTE" ]]; then
+      COST_DATE="$(date +%Y-%m-%d)"
+    fi
+  fi
+
+  # Set remaining vars to empty (not updating)
+  OWNER_NAME="" OWNER_CONTACT="" DESCRIPTION="" BRAND="" SERIAL=""
+  DELIVERED_DATE="" NO_HOOKS=""
+
+  # If status is delivered, auto-set delivered_date
+  if [[ "$STATUS" == "delivered" ]]; then
+    DELIVERED_DATE="$(date +%Y-%m-%d)"
+  fi
+
+  ITEM_FILE="$ITEM_DIR/item.md"
+  # Skip to the Python update section
+else
+  # --- Parse arguments ---
+  ITEM_DIR="" STATUS="" OWNER_NAME="" OWNER_CONTACT="" DESCRIPTION="" BRAND="" SERIAL=""
+  COST_AMOUNT="" COST_NOTE="" COST_DATE="" DELIVERED_DATE="" NO_HOOKS=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --item-dir) ITEM_DIR="$2"; shift 2 ;;
+      --status) STATUS="$2"; shift 2 ;;
+      --owner-name) OWNER_NAME="$2"; shift 2 ;;
+      --owner-contact) OWNER_CONTACT="$2"; shift 2 ;;
+      --description) DESCRIPTION="$2"; shift 2 ;;
+      --brand) BRAND="$2"; shift 2 ;;
+      --serial) SERIAL="$2"; shift 2 ;;
+      --cost-amount) COST_AMOUNT="$2"; shift 2 ;;
+      --cost-note) COST_NOTE="$2"; shift 2 ;;
+      --cost-date) COST_DATE="$2"; shift 2 ;;
+      --delivered-date) DELIVERED_DATE="$2"; shift 2 ;;
+      --no-hooks) NO_HOOKS="1"; shift ;;
+      *) echo "ERROR: Unknown argument: $1" >&2; exit 1 ;;
+    esac
+  done
+
+  [[ -n "$ITEM_DIR" ]] || { echo "ERROR: --item-dir is required" >&2; exit 1; }
+
+  # Default cost date to today only when a cost entry is being added
+  if [[ -n "$COST_AMOUNT" && -n "$COST_NOTE" && -z "$COST_DATE" ]]; then
+    COST_DATE="$(date +%Y-%m-%d)"
+  fi
+
+  ITEM_FILE="$ITEM_DIR/item.md"
+  [[ -f "$ITEM_FILE" ]] || { echo "ERROR: item.md not found in $ITEM_DIR" >&2; exit 1; }
 fi
-
-ITEM_FILE="$ITEM_DIR/item.md"
-[[ -f "$ITEM_FILE" ]] || { echo "ERROR: item.md not found in $ITEM_DIR" >&2; exit 1; }
 
 # --- Apply field updates via Python ---
 # All user values passed as sys.argv to prevent shell injection
@@ -119,6 +216,12 @@ with open(item_file, "w") as f:
 
 # --- Validate ---
 "$SCRIPT_DIR/parse-item.sh" "$ITEM_FILE" > /dev/null
+
+# --- Success message for interactive mode ---
+if [[ -t 0 && -t 1 ]]; then
+  ITEM_ID="$(basename "$ITEM_DIR")"
+  echo "✓ Updated $ITEM_ID" >&2
+fi
 
 # --- Run hooks (unless --no-hooks) ---
 if [[ -z "$NO_HOOKS" ]]; then
