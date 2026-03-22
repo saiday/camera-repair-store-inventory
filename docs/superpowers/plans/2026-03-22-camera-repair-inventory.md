@@ -12,6 +12,8 @@
 
 **Hook calling design:** Shell scripts (create-item.sh, update-item.sh) do NOT call update-owners.sh or generate-dashboard.sh directly. Hooks are called by server.py after successful API operations via `_run_hooks()`. This means CLI-only usage won't auto-update owners.json or the dashboard — acceptable for this single-user system where the web UI is the primary interface.
 
+**Methodology:** Follow strict TDD for Tasks 2-5 and 7. For each task: write the test first, run it to confirm it fails, then write the minimal implementation to make it pass. Do not write implementation code before the test exists and has been run. Tasks 1, 6, 8, and 9 are scaffolding/frontend/docs — no TDD, verify by manual testing.
+
 **Spec:** `docs/superpowers/specs/2026-03-22-camera-repair-inventory-design.md`
 
 ---
