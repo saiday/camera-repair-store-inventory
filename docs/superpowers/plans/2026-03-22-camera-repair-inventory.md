@@ -6,7 +6,11 @@
 
 **Architecture:** Structured Markdown files (`item.md`) are the single source of truth for each repair item. Shell scripts (Bash) handle all CRUD and validation. A Python stdlib HTTP server provides the web layer — serving static HTML and proxying form submissions to shell scripts. Two web pages: a static entry/edit form and a generated kanban dashboard.
 
-**Tech Stack:** Bash (data scripts), Python 3 stdlib (HTTP server), vanilla HTML/CSS/JS (frontend)
+**Tech Stack:** Bash (data scripts — POSIX-compatible, no bash 4+ features since macOS ships bash 3.2), Python 3 stdlib (HTTP server + parse-item helper), vanilla HTML/CSS/JS (frontend)
+
+**Bash compatibility note:** macOS ships with bash 3.2. Do NOT use bash 4+ features: no `declare -A` (associative arrays), no `local -n` (namerefs), no `${!var}` (indirect expansion in some contexts). Use Python helpers where associative data structures are needed.
+
+**Hook calling design:** Shell scripts (create-item.sh, update-item.sh) do NOT call update-owners.sh or generate-dashboard.sh directly. Hooks are called by server.py after successful API operations via `_run_hooks()`. This means CLI-only usage won't auto-update owners.json or the dashboard — acceptable for this single-user system where the web UI is the primary interface.
 
 **Spec:** `docs/superpowers/specs/2026-03-22-camera-repair-inventory-design.md`
 
@@ -356,6 +360,8 @@ Expected: FAIL (parse-item.sh does not exist yet)
 
 - [ ] **Step 3: Implement parse-item.sh**
 
+This script uses Python (via inline script) to parse the YAML frontmatter and validate it, since bash 3.2 lacks associative arrays. The shell script is a thin wrapper.
+
 ```bash
 #!/usr/bin/env bash
 # scripts/parse-item.sh — Parse and validate an item.md file, output JSON
@@ -366,95 +372,86 @@ Expected: FAIL (parse-item.sh does not exist yet)
 
 set -euo pipefail
 
-VALID_STATUSES="not_started in_progress testing done delivered ice_box"
-VALID_CATEGORIES="camera lens accessory misc"
-REQUIRED_FIELDS="id category brand model serial_number status owner_name owner_contact received_date"
-
-die() {
-  echo "ERROR: $*" >&2
+if [[ $# -ne 1 ]]; then
+  echo "ERROR: Usage: parse-item.sh <path-to-item.md>" >&2
   exit 1
-}
-
-[[ $# -eq 1 ]] || die "Usage: parse-item.sh <path-to-item.md>"
+fi
 
 ITEM_FILE="$1"
-[[ -f "$ITEM_FILE" ]] || die "item.md not found: $ITEM_FILE"
 
-# Extract the item ID from path for error messages
-ITEM_ID="$(basename "$(dirname "$ITEM_FILE")")"
-
-# --- Parse frontmatter ---
-in_frontmatter=false
-frontmatter_started=false
-declare -A fields
-
-while IFS= read -r line; do
-  if [[ "$line" == "---" ]]; then
-    if $frontmatter_started; then
-      break  # end of frontmatter
-    else
-      frontmatter_started=true
-      in_frontmatter=true
-      continue
-    fi
-  fi
-  if $in_frontmatter; then
-    key="${line%%:*}"
-    value="${line#*: }"
-    # Remove surrounding quotes
-    value="${value#\"}"
-    value="${value%\"}"
-    # Trim whitespace
-    key="$(echo "$key" | xargs)"
-    value="$(echo "$value" | xargs)"
-    fields["$key"]="$value"
-  fi
-done < "$ITEM_FILE"
-
-$frontmatter_started || die "item.md parse failed — no frontmatter found in $ITEM_ID"
-
-# --- Validate required fields ---
-for field in $REQUIRED_FIELDS; do
-  if [[ -z "${fields[$field]:-}" ]]; then
-    die "item.md parse failed — missing required field '$field' in $ITEM_ID"
-  fi
-done
-
-# --- Validate enum fields ---
-status="${fields[status]}"
-if [[ ! " $VALID_STATUSES " =~ " $status " ]]; then
-  die "item.md parse failed — invalid status '$status' in $ITEM_ID (valid: $VALID_STATUSES)"
+if [[ ! -f "$ITEM_FILE" ]]; then
+  echo "ERROR: item.md not found: $ITEM_FILE" >&2
+  exit 1
 fi
 
-category="${fields[category]}"
-if [[ ! " $VALID_CATEGORIES " =~ " $category " ]]; then
-  die "item.md parse failed — invalid category '$category' in $ITEM_ID (valid: $VALID_CATEGORIES)"
-fi
+python3 -c "
+import sys, json, os, re
 
-# --- Validate body sections ---
-body_content="$(sed -n '/^---$/,$ p' "$ITEM_FILE" | tail -n +2)"
-if ! echo "$body_content" | grep -q "^# 維修描述"; then
-  die "item.md parse failed — missing section '# 維修描述' in $ITEM_ID"
-fi
-if ! echo "$body_content" | grep -q "^# 費用紀錄"; then
-  die "item.md parse failed — missing section '# 費用紀錄' in $ITEM_ID"
-fi
+item_file = sys.argv[1]
+item_id = os.path.basename(os.path.dirname(item_file))
 
-# --- Output JSON ---
-cat << EOF
-{
-  "id": "${fields[id]}",
-  "category": "${fields[category]}",
-  "brand": "${fields[brand]}",
-  "model": "${fields[model]}",
-  "serial_number": "${fields[serial_number]}",
-  "status": "${fields[status]}",
-  "owner_name": "${fields[owner_name]}",
-  "owner_contact": "${fields[owner_contact]}",
-  "received_date": "${fields[received_date]}",
-  "delivered_date": "${fields[delivered_date]:-}"
+with open(item_file, 'r') as f:
+    content = f.read()
+
+# Parse frontmatter
+fm_match = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
+if not fm_match:
+    print(f'ERROR: item.md parse failed — no frontmatter found in {item_id}', file=sys.stderr)
+    sys.exit(1)
+
+fields = {}
+for line in fm_match.group(1).split('\n'):
+    colon_idx = line.find(':')
+    if colon_idx > 0:
+        key = line[:colon_idx].strip()
+        value = line[colon_idx+1:].strip()
+        # Remove surrounding quotes
+        if value.startswith('\"') and value.endswith('\"'):
+            value = value[1:-1]
+        fields[key] = value
+
+# Validate required fields
+required = ['id','category','brand','model','serial_number','status','owner_name','owner_contact','received_date']
+for field in required:
+    if not fields.get(field):
+        print(f\"ERROR: item.md parse failed — missing required field '{field}' in {item_id}\", file=sys.stderr)
+        sys.exit(1)
+
+# Validate enums
+valid_statuses = ['not_started','in_progress','testing','done','delivered','ice_box']
+if fields['status'] not in valid_statuses:
+    print(f\"ERROR: item.md parse failed — invalid status '{fields['status']}' in {item_id} (valid: {' '.join(valid_statuses)})\", file=sys.stderr)
+    sys.exit(1)
+
+valid_categories = ['camera','lens','accessory','misc']
+if fields['category'] not in valid_categories:
+    print(f\"ERROR: item.md parse failed — invalid category '{fields['category']}' in {item_id} (valid: {' '.join(valid_categories)})\", file=sys.stderr)
+    sys.exit(1)
+
+# Validate body sections (content after the closing ---)
+body = content[fm_match.end():]
+if '# 維修描述' not in body:
+    print(f'ERROR: item.md parse failed — missing section \"# 維修描述\" in {item_id}', file=sys.stderr)
+    sys.exit(1)
+if '# 費用紀錄' not in body:
+    print(f'ERROR: item.md parse failed — missing section \"# 費用紀錄\" in {item_id}', file=sys.stderr)
+    sys.exit(1)
+
+# Output JSON
+result = {
+    'id': fields.get('id', ''),
+    'category': fields.get('category', ''),
+    'brand': fields.get('brand', ''),
+    'model': fields.get('model', ''),
+    'serial_number': fields.get('serial_number', ''),
+    'status': fields.get('status', ''),
+    'owner_name': fields.get('owner_name', ''),
+    'owner_contact': fields.get('owner_contact', ''),
+    'received_date': fields.get('received_date', ''),
+    'delivered_date': fields.get('delivered_date', ''),
 }
-EOF
+print(json.dumps(result, ensure_ascii=False, indent=2))
+" "$ITEM_FILE"
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -670,9 +667,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 # --- Validate required args ---
-for var in DATA_DIR CATEGORY BRAND MODEL SERIAL OWNER_NAME OWNER_CONTACT DESCRIPTION DATE; do
-  if [[ -z "${!var}" ]]; then
-    echo "ERROR: Missing required argument --$(echo "$var" | tr '_' '-' | tr '[:upper:]' '[:lower:]')" >&2
+# (bash 3.2 compatible — no ${!var} indirect expansion)
+for pair in "DATA_DIR:$DATA_DIR" "CATEGORY:$CATEGORY" "BRAND:$BRAND" "MODEL:$MODEL" \
+            "SERIAL:$SERIAL" "OWNER_NAME:$OWNER_NAME" "OWNER_CONTACT:$OWNER_CONTACT" \
+            "DESCRIPTION:$DESCRIPTION" "DATE:$DATE"; do
+  var_name="${pair%%:*}"
+  var_val="${pair#*:}"
+  if [[ -z "$var_val" ]]; then
+    echo "ERROR: Missing required argument --$(echo "$var_name" | tr '_' '-' | tr '[:upper:]' '[:lower:]')" >&2
     exit 1
   fi
 done
@@ -975,9 +977,12 @@ ITEM_FILE="$ITEM_DIR/item.md"
 CONTENT="$(cat "$ITEM_FILE")"
 
 # --- Helper: replace a frontmatter field value ---
+# Uses awk instead of sed to avoid delimiter collision with field values
 replace_field() {
   local field="$1" new_value="$2"
-  CONTENT="$(echo "$CONTENT" | sed "s|^${field}:.*|${field}: ${new_value}|")"
+  CONTENT="$(echo "$CONTENT" | awk -v f="$field" -v v="$new_value" '{
+    if ($0 ~ "^"f":") print f": "v; else print
+  }')"
 }
 
 # --- Apply field updates ---
@@ -1167,34 +1172,35 @@ DATA_DIR="$1"
 REPAIRS_DIR="$DATA_DIR/repairs"
 OWNERS_FILE="$DATA_DIR/owners.json"
 
-# Collect unique name+contact pairs
-declare -A seen
-entries=""
+# Use Python to collect, deduplicate, and write JSON
+# (bash 3.2 lacks associative arrays needed for dedup)
+python3 -c "
+import sys, json, os, subprocess
 
-for item_md in "$REPAIRS_DIR"/*/item.md; do
-  [[ -f "$item_md" ]] || continue
+repairs_dir = sys.argv[1]
+owners_file = sys.argv[2]
+parse_script = sys.argv[3]
 
-  json="$("$SCRIPT_DIR/parse-item.sh" "$item_md" 2>/dev/null)" || continue
+seen = set()
+owners = []
 
-  name="$(echo "$json" | grep '"owner_name"' | sed 's/.*: "\(.*\)".*/\1/')"
-  contact="$(echo "$json" | grep '"owner_contact"' | sed 's/.*: "\(.*\)".*/\1/')"
+if os.path.isdir(repairs_dir):
+    for name in sorted(os.listdir(repairs_dir)):
+        item_md = os.path.join(repairs_dir, name, 'item.md')
+        if not os.path.isfile(item_md):
+            continue
+        result = subprocess.run([parse_script, item_md], capture_output=True, text=True)
+        if result.returncode != 0:
+            continue
+        item = json.loads(result.stdout)
+        key = (item['owner_name'], item['owner_contact'])
+        if key not in seen:
+            seen.add(key)
+            owners.append({'name': item['owner_name'], 'contact': item['owner_contact']})
 
-  key="${name}|||${contact}"
-  if [[ -z "${seen[$key]:-}" ]]; then
-    seen[$key]=1
-    [[ -n "$entries" ]] && entries="$entries,"
-    entries="$entries
-  {\"name\": \"$name\", \"contact\": \"$contact\"}"
-  fi
-done
-
-# Write owners.json
-if [[ -n "$entries" ]]; then
-  echo "[$entries
-]" > "$OWNERS_FILE"
-else
-  echo "[]" > "$OWNERS_FILE"
-fi
+with open(owners_file, 'w') as f:
+    json.dump(owners, f, ensure_ascii=False, indent=2)
+" "$REPAIRS_DIR" "$OWNERS_FILE" "$SCRIPT_DIR/parse-item.sh"
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -1340,14 +1346,233 @@ Expected: FAIL
 
 - [ ] **Step 3: Create web/static/style.css**
 
-Shared CSS for both pages: toolbar, kanban columns, cards, form styles, Traditional Chinese font stack. This is a substantial file — implement with clean, well-organized sections. Key elements:
+**CSS class contract** — the dashboard generator and entry page use these classes. All must be styled:
 
-- Toolbar with two nav links (維修單 / 看板)
-- Kanban board: horizontal columns, cards within each column
-- Cards: item ID, model, owner, days badge
-- Form styles for the entry page
-- Responsive for desktop use (mobile not required)
-- Clean, professional look — light neutral palette
+Dashboard classes: `toolbar`, `toolbar a`, `toolbar a.active`, `kanban`, `column`, `column-header`, `count`, `column-cards`, `card`, `card-id`, `card-model`, `card-owner`, `days-badge`, `empty-column`, `ice-box`, `ice-box.collapsed`, `section-toggle`, `section-cards`
+
+Entry page classes: `entry-page`, `search-container`, `dropdown`, `search-result`, `suggestion`, `form-group`, `form-row`, `form-actions`, `cost-section`, `edit-mode`
+
+```css
+/* web/static/style.css — Shared styles for both pages */
+
+/* --- Reset & Base --- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f5f5f5;
+  color: #333;
+  line-height: 1.5;
+}
+
+/* --- Toolbar --- */
+.toolbar {
+  display: flex;
+  gap: 0;
+  background: #fff;
+  border-bottom: 1px solid #ddd;
+  padding: 0 24px;
+}
+.toolbar a {
+  padding: 12px 20px;
+  text-decoration: none;
+  color: #666;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+}
+.toolbar a.active {
+  color: #333;
+  border-bottom-color: #333;
+}
+.toolbar a:hover { color: #333; }
+
+/* --- Kanban Dashboard --- */
+.kanban {
+  display: flex;
+  gap: 16px;
+  padding: 24px;
+  overflow-x: auto;
+  min-height: calc(100vh - 100px);
+}
+.column {
+  flex: 1;
+  min-width: 240px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid #e0e0e0;
+}
+.column-header {
+  font-weight: 600;
+  font-size: 14px;
+  color: #555;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eee;
+}
+.count { color: #999; font-weight: 400; }
+.column-cards { display: flex; flex-direction: column; gap: 8px; }
+.card {
+  display: block;
+  background: #fafafa;
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+  padding: 12px;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+}
+.card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  border-color: #ccc;
+}
+.card-id { font-size: 12px; color: #888; font-family: monospace; }
+.card-model { font-weight: 600; margin: 4px 0; }
+.card-owner { font-size: 13px; color: #666; }
+.days-badge {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #999;
+  background: #f0f0f0;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.empty-column { color: #ccc; text-align: center; padding: 20px; }
+
+/* --- Ice Box --- */
+.ice-box {
+  margin: 0 24px 24px;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  padding: 16px;
+}
+.section-toggle {
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  color: #555;
+  user-select: none;
+}
+.section-toggle::before { content: "▼ "; font-size: 12px; }
+.ice-box.collapsed .section-toggle::before { content: "▶ "; }
+.ice-box.collapsed .section-cards { display: none; }
+.section-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.section-cards .card { width: 240px; }
+
+/* --- Entry Page --- */
+.entry-page {
+  max-width: 640px;
+  margin: 24px auto;
+  padding: 0 24px;
+}
+.search-container {
+  position: relative;
+  margin-bottom: 24px;
+}
+.search-container input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+}
+.dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 0 0 6px 6px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.search-result, .suggestion {
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.search-result:hover, .suggestion:hover { background: #f5f5f5; }
+.form-group {
+  margin-bottom: 16px;
+}
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+  margin-bottom: 4px;
+}
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+}
+.form-group textarea { resize: vertical; }
+.form-row { display: flex; gap: 16px; }
+.form-row .form-group { flex: 1; }
+.cost-section {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.cost-section legend {
+  font-weight: 600;
+  font-size: 14px;
+  color: #555;
+  padding: 0 8px;
+}
+#cost-history table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+#cost-history th, #cost-history td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #eee;
+  text-align: left;
+}
+#cost-history th { color: #888; font-weight: 500; }
+.form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+.form-actions button {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+#submit-btn {
+  background: #333;
+  color: #fff;
+}
+#submit-btn:hover { background: #555; }
+#open-logs-btn {
+  background: #e8e8e8;
+  color: #333;
+}
+#open-logs-btn:hover { background: #ddd; }
+```
 
 - [ ] **Step 4: Create web/static/dashboard.js**
 
@@ -1380,6 +1605,9 @@ document.addEventListener('DOMContentLoaded', function() {
 # Usage: generate-dashboard.sh <data-dir> <web-dir>
 # Reads all items via parse-item.sh, groups by status,
 # writes web/dashboard.html
+#
+# Uses Python for JSON parsing and HTML generation to avoid
+# bash 4+ features (associative arrays, namerefs).
 
 set -euo pipefail
 
@@ -1389,106 +1617,104 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 DATA_DIR="$1"
 WEB_DIR="$2"
-REPAIRS_DIR="$DATA_DIR/repairs"
 
-# --- Collect items grouped by status ---
-declare -a not_started=() in_progress=() testing=() done_items=() ice_box=() delivered=()
+python3 -c "
+import sys, json, os, subprocess
 
-for item_md in "$REPAIRS_DIR"/*/item.md; do
-  [[ -f "$item_md" ]] || continue
-  json="$("$SCRIPT_DIR/parse-item.sh" "$item_md" 2>/dev/null)" || continue
+repairs_dir = os.path.join(sys.argv[1], 'repairs')
+web_dir = sys.argv[2]
+parse_script = sys.argv[3]
 
-  id="$(echo "$json" | grep '"id"' | head -1 | sed 's/.*: "\(.*\)".*/\1/')"
-  status="$(echo "$json" | grep '"status"' | sed 's/.*: "\(.*\)".*/\1/')"
-  model="$(echo "$json" | grep '"model"' | sed 's/.*: "\(.*\)".*/\1/')"
-  owner="$(echo "$json" | grep '"owner_name"' | sed 's/.*: "\(.*\)".*/\1/')"
-  received="$(echo "$json" | grep '"received_date"' | sed 's/.*: "\(.*\)".*/\1/')"
-
-  card="<a class=\"card\" href=\"entry.html?id=$id\" data-received=\"$received\">
-  <div class=\"card-id\">$id</div>
-  <div class=\"card-model\">$model</div>
-  <div class=\"card-owner\">$owner</div>
-  <div class=\"days-badge\"></div>
-</a>"
-
-  case "$status" in
-    not_started) not_started+=("$card") ;;
-    in_progress) in_progress+=("$card") ;;
-    testing) testing+=("$card") ;;
-    done) done_items+=("$card") ;;
-    ice_box) ice_box+=("$card") ;;
-    delivered) delivered+=("$card") ;;
-  esac
-done
-
-# --- Helper: render cards array ---
-render_cards() {
-  local -n arr=$1
-  if [[ ${#arr[@]} -eq 0 ]]; then
-    echo '      <div class="empty-column">—</div>'
-  else
-    for card in "${arr[@]}"; do
-      echo "      $card"
-    done
-  fi
+# Collect items grouped by status
+groups = {
+    'not_started': [],
+    'in_progress': [],
+    'testing': [],
+    'done': [],
+    'ice_box': [],
+    'delivered': [],
 }
 
-# --- Write dashboard.html ---
-cat > "$WEB_DIR/dashboard.html" << 'HTML_HEAD'
-<!DOCTYPE html>
-<html lang="zh-Hant">
+if os.path.isdir(repairs_dir):
+    for name in sorted(os.listdir(repairs_dir)):
+        item_md = os.path.join(repairs_dir, name, 'item.md')
+        if not os.path.isfile(item_md):
+            continue
+        result = subprocess.run([parse_script, item_md], capture_output=True, text=True)
+        if result.returncode != 0:
+            continue
+        item = json.loads(result.stdout)
+        status = item.get('status', '')
+        if status in groups:
+            groups[status].append(item)
+
+def render_card(item):
+    return (
+        f'<a class=\"card\" href=\"entry.html?id={item[\"id\"]}\" data-received=\"{item[\"received_date\"]}\">'
+        f'<div class=\"card-id\">{item[\"id\"]}</div>'
+        f'<div class=\"card-model\">{item[\"model\"]}</div>'
+        f'<div class=\"card-owner\">{item[\"owner_name\"]}</div>'
+        f'<div class=\"days-badge\"></div>'
+        f'</a>'
+    )
+
+def render_cards(items):
+    if not items:
+        return '<div class=\"empty-column\">\u2014</div>'
+    return '\n'.join(render_card(item) for item in items)
+
+columns = [
+    ('not_started', '未開始'),
+    ('in_progress', '進行中'),
+    ('testing', '測試中'),
+    ('done', '完成\u30FB待取件'),
+]
+
+columns_html = ''
+for status, label in columns:
+    items = groups[status]
+    columns_html += f'''
+    <div class=\"column\">
+      <div class=\"column-header\">{label} <span class=\"count\">({len(items)})</span></div>
+      <div class=\"column-cards\">
+        {render_cards(items)}
+      </div>
+    </div>'''
+
+ice_items = groups['ice_box']
+ice_html = render_cards(ice_items)
+
+html = f'''<!DOCTYPE html>
+<html lang=\"zh-Hant\">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset=\"UTF-8\">
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
   <title>維修進度看板</title>
-  <link rel="stylesheet" href="static/style.css">
+  <link rel=\"stylesheet\" href=\"static/style.css\">
 </head>
 <body>
-  <nav class="toolbar">
-    <a href="entry.html">維修單</a>
-    <a href="dashboard.html" class="active">看板</a>
+  <nav class=\"toolbar\">
+    <a href=\"entry.html\">維修單</a>
+    <a href=\"dashboard.html\" class=\"active\">看板</a>
   </nav>
-  <main class="kanban">
-HTML_HEAD
-
-# --- Columns ---
-for col_status in not_started in_progress testing done_items; do
-  case "$col_status" in
-    not_started) label="未開始"; count=${#not_started[@]} ;;
-    in_progress) label="進行中"; count=${#in_progress[@]} ;;
-    testing) label="測試中"; count=${#testing[@]} ;;
-    done_items) label="完成・待取件"; count=${#done_items[@]} ;;
-  esac
-
-  cat >> "$WEB_DIR/dashboard.html" << COLUMN
-    <div class="column">
-      <div class="column-header">$label <span class="count">($count)</span></div>
-      <div class="column-cards">
-$(render_cards "$col_status")
-      </div>
-    </div>
-COLUMN
-done
-
-# --- Ice box section ---
-cat >> "$WEB_DIR/dashboard.html" << 'ICE_HEAD'
+  <main class=\"kanban\">{columns_html}
   </main>
-  <section class="ice-box collapsed">
-    <h2 class="section-toggle" onclick="this.parentElement.classList.toggle('collapsed')">
-ICE_HEAD
-echo "      冰箱 <span class=\"count\">(${#ice_box[@]})</span>" >> "$WEB_DIR/dashboard.html"
-cat >> "$WEB_DIR/dashboard.html" << 'ICE_MID'
+  <section class=\"ice-box collapsed\">
+    <h2 class=\"section-toggle\" onclick=\"this.parentElement.classList.toggle(\'collapsed\')\">
+      冰箱 <span class=\"count\">({len(ice_items)})</span>
     </h2>
-    <div class="section-cards">
-ICE_MID
-render_cards ice_box >> "$WEB_DIR/dashboard.html"
-cat >> "$WEB_DIR/dashboard.html" << 'ICE_FOOT'
+    <div class=\"section-cards\">
+      {ice_html}
     </div>
   </section>
-  <script src="static/dashboard.js"></script>
+  <script src=\"static/dashboard.js\"></script>
 </body>
-</html>
-ICE_FOOT
+</html>'''
+
+os.makedirs(web_dir, exist_ok=True)
+with open(os.path.join(web_dir, 'dashboard.html'), 'w') as f:
+    f.write(html)
+" "$DATA_DIR" "$WEB_DIR" "$SCRIPT_DIR/parse-item.sh"
 ```
 
 - [ ] **Step 6: Run tests to verify they pass**
@@ -1556,7 +1782,15 @@ start_server() {
     --web-dir "$TEST_TMP/web" \
     --scripts-dir "$SCRIPT_DIR" &
   SERVER_PID=$!
-  sleep 1
+  # Wait for server to be ready (retry up to 5 seconds)
+  for i in $(seq 1 50); do
+    if curl -s -o /dev/null "http://localhost:$TEST_PORT/" 2>/dev/null; then
+      return 0
+    fi
+    sleep 0.1
+  done
+  echo "ERROR: Server failed to start within 5 seconds" >&2
+  return 1
 }
 
 stop_server() {
@@ -2015,12 +2249,131 @@ This is the main form page. It's a static HTML file with JS that handles:
 
 - [ ] **Step 1: Create web/entry.html**
 
-Build the complete HTML form with:
-- Shared toolbar (維修單 active, 看板 link)
-- Search bar at top
-- Form fields matching spec: category dropdown, brand, model, serial, owner name, owner contact, description textarea, cost amount + note
-- Edit-mode extras: status dropdown, cost history display, "開啟維修記錄資料夾" button
-- All labels in Traditional Chinese
+**IMPORTANT:** entry.js references the following element IDs. The HTML MUST use exactly these IDs:
+
+| Element ID | Element Type | Purpose |
+|------------|-------------|---------|
+| `search` | `<input>` | Search bar for finding existing items |
+| `search-results` | `<div>` | Dropdown for search results |
+| `repair-form` | `<form>` | Main form element |
+| `category` | `<select>` | Category dropdown |
+| `brand` | `<input>` | Brand text field |
+| `model` | `<input>` | Model text field |
+| `serial` | `<input>` | Serial number text field |
+| `owner-name` | `<input>` | Owner name with autocomplete |
+| `owner-contact` | `<input>` | Owner contact text field |
+| `owner-suggestions` | `<div>` | Owner autocomplete dropdown |
+| `description` | `<textarea>` | Repair description |
+| `status` | `<select>` | Status dropdown (edit mode) |
+| `status-group` | `<div>` | Container for status field (hidden in create mode) |
+| `cost-amount` | `<input>` | Cost amount field |
+| `cost-note` | `<input>` | Cost note/reason field |
+| `cost-history` | `<div>` | Cost history table (edit mode) |
+| `open-logs-btn` | `<button>` | "Open logs folder" button (edit mode) |
+| `submit-btn` | `<button>` | Form submit button |
+
+```html
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>建立/編輯維修單</title>
+  <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+  <nav class="toolbar">
+    <a href="entry.html" class="active">維修單</a>
+    <a href="dashboard.html">看板</a>
+  </nav>
+
+  <main class="entry-page">
+    <div class="search-container">
+      <input type="text" id="search" placeholder="搜尋維修單（ID、型號、客戶名稱）..." autocomplete="off">
+      <div id="search-results" class="dropdown" style="display:none"></div>
+    </div>
+
+    <form id="repair-form">
+      <div class="form-group">
+        <label for="category">類別</label>
+        <select id="category" required>
+          <option value="">請選擇...</option>
+          <option value="camera">相機</option>
+          <option value="lens">鏡頭</option>
+          <option value="accessory">配件</option>
+          <option value="misc">其他</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="brand">品牌</label>
+        <input type="text" id="brand" required>
+      </div>
+
+      <div class="form-group">
+        <label for="model">型號</label>
+        <input type="text" id="model" required>
+      </div>
+
+      <div class="form-group">
+        <label for="serial">序號</label>
+        <input type="text" id="serial" required>
+      </div>
+
+      <div class="form-group" style="position:relative">
+        <label for="owner-name">客戶姓名</label>
+        <input type="text" id="owner-name" required autocomplete="off">
+        <div id="owner-suggestions" class="dropdown" style="display:none"></div>
+      </div>
+
+      <div class="form-group">
+        <label for="owner-contact">聯絡方式</label>
+        <input type="text" id="owner-contact" required placeholder="電話、IG、FB...">
+      </div>
+
+      <div class="form-group">
+        <label for="description">維修描述</label>
+        <textarea id="description" rows="4" required></textarea>
+      </div>
+
+      <div id="status-group" class="form-group" style="display:none">
+        <label for="status">狀態</label>
+        <select id="status">
+          <option value="not_started">未開始</option>
+          <option value="in_progress">進行中</option>
+          <option value="testing">測試中</option>
+          <option value="done">完成</option>
+          <option value="delivered">已交付</option>
+          <option value="ice_box">冰箱</option>
+        </select>
+      </div>
+
+      <fieldset class="cost-section">
+        <legend>費用</legend>
+        <div id="cost-history"></div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="cost-amount">金額</label>
+            <input type="number" id="cost-amount">
+          </div>
+          <div class="form-group">
+            <label for="cost-note">說明</label>
+            <input type="text" id="cost-note" placeholder="估價、零件費用...">
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="form-actions">
+        <button type="button" id="open-logs-btn" style="display:none">開啟維修記錄資料夾</button>
+        <button type="submit" id="submit-btn">建立維修單</button>
+      </div>
+    </form>
+  </main>
+
+  <script src="static/entry.js"></script>
+</body>
+</html>
+```
 
 - [ ] **Step 2: Create web/static/entry.js**
 
