@@ -106,19 +106,22 @@ esac
 # Spaces become dashes, remove non-alphanumeric except dashes, preserve case
 NORMALIZED_MODEL="$(echo "$MODEL" | sed 's/ /-/g' | sed 's/[^A-Za-z0-9-]//g')"
 
-# --- Format date for ID (strip dashes) ---
+# --- Format date components ---
 DATE_COMPACT="${DATE//-/}"
+YEAR="${DATE:0:4}"
+MONTH="${DATE:5:2}"
 
 # --- Determine sequence number ---
 PREFIX="${TYPE_PREFIX}-${DATE_COMPACT}-${NORMALIZED_MODEL}"
 SEQ=1
-while [[ -d "$DATA_DIR/repairs/${PREFIX}-$(printf '%03d' $SEQ)" ]]; do
+NESTED_DIR="$DATA_DIR/repairs/$YEAR/$MONTH"
+while [[ -d "$NESTED_DIR/${PREFIX}-$(printf '%03d' $SEQ)" ]]; do
   SEQ=$((SEQ + 1))
 done
 SEQ_PADDED="$(printf '%03d' $SEQ)"
 
 ITEM_ID="${PREFIX}-${SEQ_PADDED}"
-ITEM_DIR="$DATA_DIR/repairs/$ITEM_ID"
+ITEM_DIR="$NESTED_DIR/$ITEM_ID"
 
 # --- Create directory structure ---
 mkdir -p "$ITEM_DIR/logs"
@@ -144,6 +147,7 @@ fi
   printf '%s\n' "owner_contact: $OWNER_CONTACT"
   printf '%s\n' "received_date: $DATE"
   printf '%s\n' "delivered_date:"
+  printf '%s\n' "page_password:"
   printf '%s\n' "---"
   printf '\n'
   printf '%s\n' "# 維修描述"
