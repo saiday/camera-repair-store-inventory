@@ -346,7 +346,13 @@ After a create/update mutation, the GitHub commit triggers a Cloudflare Pages re
 - `scripts/setup-cloudflare.sh` — interactive setup script, walks through configuration one question at a time (see below)
 - `docs/cloudflare-setup.md` — step-by-step guide for non-technical users, companion to `setup-cloudflare.sh` (includes GitHub token creation with minimum scope)
 - Updated `CLAUDE.md` — local dev vs production context, hook architecture clarification
-- Updated `README.md` — project overview with deployment info
+- Updated `README.md` — restructure to cover both local and Cloudflare modes:
+  - Keep existing local usage sections (啟動, 使用方式, 維修單狀態流程)
+  - Add Cloudflare deployment section: overview, point to `./scripts/setup-cloudflare.sh` and `docs/cloudflare-setup.md`
+  - Update 資料位置 section: document `YYYY/MM/` nesting, explain `web/_data/` as build output
+  - Add customer page section: explain `page_password`, the copyable message, and the publish/unpublish lifecycle
+  - Update 注意事項: add `web/_data/` and `web/customer/` as auto-generated (do not edit)
+  - README remains in Traditional Chinese
 - Updated `scripts/create-item.sh` — new directory structure (`YYYY/MM/`)
 - Updated `scripts/update-item.sh` — `page_password` field handling, clear on delivered
 - Updated `scripts/parse-item.sh` — validate new `page_password` field
