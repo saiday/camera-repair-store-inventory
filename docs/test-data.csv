@@ -1,0 +1,26 @@
+group,category,brand,model,serial_number,owner_name,owner_contact,description,received_date
+1,lens,Minolta,MD 80/2,N/A,林先生,IG: @lin_camera,鏡片清潔保養,2026-03-22
+2,lens,Contax,21/4.5,7654321,張小姐,0912-345-678,對焦環潤滑保養,2026-03-21
+2,lens,Nikon,135/3.5,432198,張小姐,0912-345-678,光圈葉片油漬清潔,2026-03-21
+3,accessory,Leica,21mm ViewFinder,N/A,陳先生,LINE: chen_photo,目鏡清潔,2026-03-20
+4,camera,Rollei,35,3210456,黃先生,0923-456-789,測光表不準,2026-03-19
+5,camera,Nikon,S3 2000,2000123,王先生,0934-567-890,快門簾幕檢修,2026-03-18
+6,camera,Minolta,CLE,1034567,李先生,IG: @li_vintage,測光電路檢修,2026-03-17
+6,lens,Minolta,28/2.8,2034567,李先生,IG: @li_vintage,鏡片清潔保養,2026-03-17
+6,lens,Minolta,40/2,2134567,李先生,IG: @li_vintage,對焦環潤滑,2026-03-17
+6,lens,Minolta,90/4,2234567,李先生,IG: @li_vintage,光圈環段落感調整,2026-03-17
+7,camera,Minolta,XE-7,1156789,吳小姐,0945-678-901,電容更換,2026-03-16
+7,lens,Minolta,MD 50/1.4,2556789,吳小姐,0945-678-901,鏡片起霧清潔,2026-03-16
+8,camera,Minolta,SRT 303,1789012,趙先生,FB: 趙維修,測光表校正,2026-03-15
+9,lens,Minolta,MD 100/4,1345678,鄭先生,0956-789-012,微距對焦環維修,2026-03-14
+10,camera,Rolleiflex,3.5F,2601234,周先生,IG: @chou_tlr,慢門粘滯 (type 1),2026-03-13
+11,camera,Rolleiflex,3.5F,2701234,許先生,0967-890-123,脫焦 + 過片不停,2026-03-12
+12,camera,Rolleiflex,3.5F,2804217,Marco,email: marco@camera.it,全機保養 (6 elements) 附 grip + Rolleinar 1 & 3 from Italy,2026-03-11
+13,camera,Rollei,35S,3310456,劉先生,LINE: liu_snap,快門速度校正,2026-03-10
+14,lens,Minolta,G-Rokkor 28/3.5,1901234,蔡小姐,0978-901-234,鏡片清潔保養,2026-03-09
+15,lens,Voigtlander,Ultron 40/2,8901234,謝先生,IG: @hsieh_cam,光圈葉片油漬清潔,2026-03-08
+16,camera,Fujifilm,GS645S,5012345,楊先生,0989-012-345,蛇腹檢查更換,2026-03-07
+17,camera,Minolta,TC-1,1012345,沈先生,LINE: shen_tc1,鏡頭蓋開合不良,2026-03-06
+18,camera,Nikon,FM,8123456,高先生,0911-234-567,測光表檢修,2026-03-05
+19,accessory,Nikon,SB-28,3123456,高先生,0911-234-567,閃光燈不觸發,2026-03-05
+20,accessory,Amedeo,S-M adapter,N/A,葉先生,IG: @ye_adapter,卡口鬆動調整,2026-03-04
