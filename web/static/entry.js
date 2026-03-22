@@ -166,6 +166,7 @@
       }
       const matches = allItems.filter(function(item) {
         return item.id.toLowerCase().includes(q) ||
+               item.brand.toLowerCase().includes(q) ||
                item.model.toLowerCase().includes(q) ||
                item.owner_name.toLowerCase().includes(q);
       });
