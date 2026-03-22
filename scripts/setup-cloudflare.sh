@@ -276,25 +276,16 @@ fi
 
 print_step 10 "設定環境變數"
 
-echo "  正在設定 GITHUB_REPO、GITHUB_BRANCH、SITE_URL..."
-echo "  （透過 wrangler pages project update）"
+echo "  請至 Cloudflare Dashboard 手動設定環境變數："
+echo "  Pages → ${PROJECT_NAME} → Settings → Environment variables"
 echo ""
-
-if wrangler pages project update "$PROJECT_NAME" \
-    --env "GITHUB_REPO=$GITHUB_REPO" \
-    --env "GITHUB_BRANCH=$GITHUB_BRANCH" \
-    --env "SITE_URL=$SITE_URL" 2>&1; then
-    print_ok "環境變數已設定。"
-else
-    echo ""
-    echo "  [提示] 若 wrangler pages project update 不支援 --env，"
-    echo "  請手動至 Cloudflare Dashboard → Pages → $PROJECT_NAME → Settings → Environment variables 新增："
-    echo "    GITHUB_REPO  = $GITHUB_REPO"
-    echo "    GITHUB_BRANCH = $GITHUB_BRANCH"
-    echo "    SITE_URL     = $SITE_URL"
-    echo ""
-    confirm_continue "  完成後按 Enter 繼續..."
-fi
+echo "  新增以下 Production 環境變數："
+echo "    GITHUB_REPO   = ${GITHUB_REPO}"
+echo "    GITHUB_BRANCH = ${GITHUB_BRANCH}"
+echo "    SITE_URL      = ${SITE_URL}"
+echo ""
+confirm_continue "  完成後按 Enter 繼續..."
+print_ok "環境變數已設定。"
 
 # ---------------------------------------------------------------------------
 # Step 11: Build and deploy
