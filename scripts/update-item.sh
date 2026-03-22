@@ -20,9 +20,10 @@ if [[ $# -eq 0 && -t 0 ]]; then
   printf 'Search: ' >&2
   read -r SEARCH_QUERY
 
-  # Direct item ID match — skip search if input is an exact directory name
-  if [[ -d "$REPAIRS_DIR/$SEARCH_QUERY" && -f "$REPAIRS_DIR/$SEARCH_QUERY/item.md" ]]; then
-    ITEM_DIR="$REPAIRS_DIR/$SEARCH_QUERY"
+  # Direct item ID match — search nested YYYY/MM/<id>/ structure
+  FOUND_DIR="$(find "$REPAIRS_DIR" -type d -name "$SEARCH_QUERY" | head -1)"
+  if [[ -n "$FOUND_DIR" && -f "$FOUND_DIR/item.md" ]]; then
+    ITEM_DIR="$FOUND_DIR"
   else
 
   # Search items by brand, model, owner, or ID (case-insensitive)
@@ -30,7 +31,7 @@ if [[ $# -eq 0 && -t 0 ]]; then
   MATCH_DIRS=()
   QUERY_LOWER="$(echo "$SEARCH_QUERY" | tr '[:upper:]' '[:lower:]')"
   if [[ -d "$REPAIRS_DIR" ]]; then
-    for dir in "$REPAIRS_DIR"/*/; do
+    while IFS= read -r dir; do
       [[ -f "$dir/item.md" ]] || continue
       local_json="$("$SCRIPT_DIR/parse-item.sh" "$dir/item.md" 2>/dev/null)" || continue
       IFS=$'\t' read -r local_id local_brand local_model local_owner <<< "$(echo "$local_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['id'],d['brand'],d['model'],d['owner_name'],sep='\t')")"
@@ -39,9 +40,9 @@ if [[ $# -eq 0 && -t 0 ]]; then
       HAYSTACK="$(echo "$local_id $local_brand $local_model $local_owner" | tr '[:upper:]' '[:lower:]')"
       if [[ "$HAYSTACK" == *"$QUERY_LOWER"* ]]; then
         MATCHES+=("$local_id — $local_brand $local_model ($local_owner)")
-        MATCH_DIRS+=("${dir%/}")
+        MATCH_DIRS+=("$dir")
       fi
-    done
+    done < <(find "$REPAIRS_DIR" -name "item.md" -exec dirname {} \; | sort)
   fi
 
   if [[ ${#MATCHES[@]} -eq 0 ]]; then
@@ -92,7 +93,7 @@ if [[ $# -eq 0 && -t 0 ]]; then
 
   # Set remaining vars to empty (not updating)
   OWNER_NAME="" OWNER_CONTACT="" DESCRIPTION="" BRAND="" SERIAL=""
-  DELIVERED_DATE="" NO_HOOKS=""
+  DELIVERED_DATE="" NO_HOOKS="" PAGE_PASSWORD=""
 
   # If status is delivered, auto-set delivered_date
   if [[ "$STATUS" == "delivered" ]]; then
@@ -104,7 +105,7 @@ if [[ $# -eq 0 && -t 0 ]]; then
 else
   # --- Parse arguments ---
   ITEM_DIR="" STATUS="" OWNER_NAME="" OWNER_CONTACT="" DESCRIPTION="" BRAND="" SERIAL=""
-  COST_AMOUNT="" COST_NOTE="" COST_DATE="" DELIVERED_DATE="" NO_HOOKS=""
+  COST_AMOUNT="" COST_NOTE="" COST_DATE="" DELIVERED_DATE="" NO_HOOKS="" PAGE_PASSWORD=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -119,6 +120,7 @@ else
       --cost-note) COST_NOTE="$2"; shift 2 ;;
       --cost-date) COST_DATE="$2"; shift 2 ;;
       --delivered-date) DELIVERED_DATE="$2"; shift 2 ;;
+      --page-password) PAGE_PASSWORD="$2"; shift 2 ;;
       --no-hooks) NO_HOOKS="1"; shift ;;
       *) echo "ERROR: Unknown argument: $1" >&2; exit 1 ;;
     esac
@@ -151,6 +153,7 @@ description_val = sys.argv[8]
 cost_amount    = sys.argv[9]
 cost_note      = sys.argv[10]
 cost_date      = sys.argv[11]
+page_password  = sys.argv[12]
 
 with open(item_file, "r") as f:
     content = f.read()
@@ -188,6 +191,10 @@ if serial_val:
     fm = replace_field(fm, "serial_number", "\"" + serial_val + "\"")
 if delivered_val:
     fm = replace_field(fm, "delivered_date", delivered_val)
+if page_password:
+    fm = replace_field(fm, "page_password", page_password)
+if status_val == "delivered":
+    fm = replace_field(fm, "page_password", "")
 
 if description_val:
     def desc_replacer(m):
@@ -206,7 +213,7 @@ if cost_amount and cost_note:
 new_content = pre + fm + post + rest
 with open(item_file, "w") as f:
     f.write(new_content)
-' "$ITEM_FILE" "$STATUS" "$OWNER_NAME" "$OWNER_CONTACT" "$BRAND" "$SERIAL" "$DELIVERED_DATE" "$DESCRIPTION" "$COST_AMOUNT" "$COST_NOTE" "$COST_DATE"
+' "$ITEM_FILE" "$STATUS" "$OWNER_NAME" "$OWNER_CONTACT" "$BRAND" "$SERIAL" "$DELIVERED_DATE" "$DESCRIPTION" "$COST_AMOUNT" "$COST_NOTE" "$COST_DATE" "$PAGE_PASSWORD"
 
 # --- Validate ---
 "$SCRIPT_DIR/parse-item.sh" "$ITEM_FILE" > /dev/null
@@ -219,8 +226,12 @@ fi
 
 # --- Run hooks (unless --no-hooks) ---
 if [[ -z "$NO_HOOKS" ]]; then
-  # Derive data-dir from item-dir (two levels up: repairs/<id>/item.md → data/)
-  HOOKS_DATA_DIR="$(cd "$ITEM_DIR/../.." && pwd)"
+  # Derive data-dir from item-dir — walk up until we find a dir named "data"
+  # (handles both flat repairs/<id>/ and nested repairs/YYYY/MM/<id>/ paths)
+  HOOKS_DATA_DIR="$ITEM_DIR"
+  while [[ "$(basename "$HOOKS_DATA_DIR")" != "data" && "$HOOKS_DATA_DIR" != "/" ]]; do
+    HOOKS_DATA_DIR="$(dirname "$HOOKS_DATA_DIR")"
+  done
   "$SCRIPT_DIR/update-owners.sh" "$HOOKS_DATA_DIR" &
   "$SCRIPT_DIR/generate-dashboard.sh" "$HOOKS_DATA_DIR" &
 fi

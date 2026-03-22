@@ -6,7 +6,7 @@ source "$(dirname "$0")/helpers.sh"
 
 
 create_test_item() {
-  local item_dir="$TEST_TMP/data/repairs/CAM-20260322-EOS-R5-001"
+  local item_dir="$TEST_TMP/data/repairs/2026/03/CAM-20260322-EOS-R5-001"
   mkdir -p "$item_dir/logs"
   cat > "$item_dir/item.md" << 'ITEM'
 ---
@@ -20,6 +20,7 @@ owner_name: 王小明
 owner_contact: 0912-345-678
 received_date: 2026-03-22
 delivered_date:
+page_password:
 ---
 
 # 維修描述
@@ -151,6 +152,42 @@ test_no_hooks_flag() {
   teardown
 }
 
+test_update_page_password() {
+  setup
+  ITEM_ID="$("$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
+    --category camera --brand Canon --model Test --serial 123 \
+    --owner-name Test --owner-contact 0912 --description "test" --date 2026-03-22)"
+  ITEM_DIR="$TEST_TMP/data/repairs/2026/03/$ITEM_ID"
+
+  "$SCRIPT_DIR/update-item.sh" --no-hooks --item-dir "$ITEM_DIR" --page-password "secret123"
+
+  CONTENT="$(cat "$ITEM_DIR/item.md")"
+  assert_contains "$CONTENT" "page_password: secret123" "page_password set"
+  teardown
+}
+
+test_update_delivered_clears_page_password() {
+  setup
+  ITEM_ID="$("$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
+    --category camera --brand Canon --model Test --serial 123 \
+    --owner-name Test --owner-contact 0912 --description "test" --date 2026-03-22)"
+  ITEM_DIR="$TEST_TMP/data/repairs/2026/03/$ITEM_ID"
+
+  # First set a page_password
+  "$SCRIPT_DIR/update-item.sh" --no-hooks --item-dir "$ITEM_DIR" --page-password "secret123"
+  # Then deliver
+  "$SCRIPT_DIR/update-item.sh" --no-hooks --item-dir "$ITEM_DIR" --status delivered --delivered-date 2026-03-25
+
+  CONTENT="$(cat "$ITEM_DIR/item.md")"
+  assert_contains "$CONTENT" "page_password:" "page_password cleared on delivered"
+  # Ensure it's empty (just "page_password:" with nothing after)
+  if echo "$CONTENT" | grep -q "page_password: ."; then
+    echo "FAIL: page_password should be empty after delivery"
+    return 1
+  fi
+  teardown
+}
+
 # --- Run all tests ---
 echo "=== update-item.sh tests ==="
 run_test "update status" test_update_status
@@ -159,5 +196,7 @@ run_test "add cost entry" test_add_cost
 run_test "delivered sets date" test_delivered_sets_date
 run_test "update description" test_update_description
 run_test "--no-hooks flag" test_no_hooks_flag
+run_test "update page_password" test_update_page_password
+run_test "delivered clears page_password" test_update_delivered_clears_page_password
 
 print_results
