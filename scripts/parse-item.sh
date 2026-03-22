@@ -70,6 +70,15 @@ if '# 費用紀錄' not in body:
 desc_match = re.search(r'# 維修描述\s*\n(.*?)(?=\n#|\Z)', body, re.DOTALL)
 description = desc_match.group(1).strip()
 
+cost_rows = []
+cost_match = re.search(r'# 費用紀錄\s*\n\| 日期[\s\S]*?\n\|[-|\s]+\n([\s\S]*?)$', body)
+if cost_match:
+    for line in cost_match.group(1).strip().split('\n'):
+        if line.startswith('|'):
+            cells = [c.strip() for c in line.split('|') if c.strip()]
+            if len(cells) == 3:
+                cost_rows.append({'date': cells[0], 'amount': cells[1], 'note': cells[2]})
+
 serial = fields.get('serial_number', '')
 if serial == 'N/A':
     serial = ''
@@ -85,7 +94,9 @@ result = {
     'owner_contact': fields.get('owner_contact', ''),
     'received_date': fields.get('received_date', ''),
     'delivered_date': fields.get('delivered_date', ''),
+    'page_password': fields.get('page_password', ''),
     'description': description,
+    'cost_rows': cost_rows,
 }
 print(json.dumps(result, ensure_ascii=False, indent=2))
 " "$ITEM_FILE"

@@ -161,6 +161,143 @@ test_file_not_found() {
   teardown
 }
 
+test_parse_page_password() {
+  setup
+  mkdir -p "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-001"
+  cat > "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-001/item.md" << 'ITEM'
+---
+id: CAM-20260322-Test-001
+category: camera
+brand: Canon
+model: Test
+serial_number: "123"
+status: not_started
+owner_name: Test
+owner_contact: 0912-000-000
+received_date: 2026-03-22
+delivered_date:
+page_password: mypassword
+---
+
+# 維修描述
+
+test
+
+# 費用紀錄
+
+| 日期 | 金額 | 說明 |
+|------|------|------|
+ITEM
+
+  OUTPUT="$("$SCRIPT_DIR/parse-item.sh" "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-001/item.md")"
+  assert_contains "$OUTPUT" '"page_password": "mypassword"' "page_password in JSON output"
+  teardown
+}
+
+test_parse_empty_page_password() {
+  setup
+  mkdir -p "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-002"
+  cat > "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-002/item.md" << 'ITEM'
+---
+id: CAM-20260322-Test-002
+category: camera
+brand: Canon
+model: Test
+serial_number: "123"
+status: not_started
+owner_name: Test
+owner_contact: 0912-000-000
+received_date: 2026-03-22
+delivered_date:
+page_password:
+---
+
+# 維修描述
+
+test
+
+# 費用紀錄
+
+| 日期 | 金額 | 說明 |
+|------|------|------|
+ITEM
+
+  OUTPUT="$("$SCRIPT_DIR/parse-item.sh" "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-002/item.md")"
+  assert_contains "$OUTPUT" '"page_password": ""' "empty page_password in JSON output"
+  teardown
+}
+
+test_parse_cost_rows() {
+  setup
+  mkdir -p "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-003"
+  cat > "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-003/item.md" << 'ITEM'
+---
+id: CAM-20260322-Test-003
+category: camera
+brand: Canon
+model: Test
+serial_number: "123"
+status: not_started
+owner_name: Test
+owner_contact: 0912-000-000
+received_date: 2026-03-22
+delivered_date:
+page_password:
+---
+
+# 維修描述
+
+test
+
+# 費用紀錄
+
+| 日期 | 金額 | 說明 |
+|------|------|------|
+| 2026-03-22 | 3000 | 初步估價 |
+| 2026-03-25 | 4500 | 需更換快門組件 |
+ITEM
+
+  OUTPUT="$("$SCRIPT_DIR/parse-item.sh" "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-003/item.md")"
+  assert_contains "$OUTPUT" '"cost_rows"' "cost_rows key in JSON output"
+  assert_contains "$OUTPUT" '3000' "first cost amount in output"
+  assert_contains "$OUTPUT" '4500' "second cost amount in output"
+  assert_contains "$OUTPUT" '初步估價' "first cost note in output"
+  teardown
+}
+
+test_parse_empty_cost_rows() {
+  setup
+  mkdir -p "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-004"
+  cat > "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-004/item.md" << 'ITEM'
+---
+id: CAM-20260322-Test-004
+category: camera
+brand: Canon
+model: Test
+serial_number: "123"
+status: not_started
+owner_name: Test
+owner_contact: 0912-000-000
+received_date: 2026-03-22
+delivered_date:
+page_password:
+---
+
+# 維修描述
+
+test
+
+# 費用紀錄
+
+| 日期 | 金額 | 說明 |
+|------|------|------|
+ITEM
+
+  OUTPUT="$("$SCRIPT_DIR/parse-item.sh" "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-004/item.md")"
+  assert_contains "$OUTPUT" '"cost_rows": []' "empty cost_rows in JSON output"
+  teardown
+}
+
 # --- Run all tests ---
 echo "=== parse-item.sh tests ==="
 run_test "valid parse" test_valid_parse
@@ -168,5 +305,9 @@ run_test "missing required field" test_missing_field
 run_test "invalid status" test_invalid_status
 run_test "missing body section" test_missing_body_section
 run_test "file not found" test_file_not_found
+run_test "page_password field" test_parse_page_password
+run_test "empty page_password" test_parse_empty_page_password
+run_test "cost_rows with data" test_parse_cost_rows
+run_test "empty cost_rows" test_parse_empty_cost_rows
 
 print_results
