@@ -14,6 +14,26 @@
 
 ---
 
+## Key Implementation Notes
+
+These notes apply across multiple tasks and address cross-cutting concerns:
+
+1. **Test fixups are part of each task, not deferred.** When a task changes directory structure in a script, that same task MUST also fix all existing tests that break from the change. Do not commit a task with known test failures.
+
+2. **Dual-mode fetch paths (local dev vs Cloudflare).** `entry.js` uses `/_data/` paths for data fetching. For local dev, `server.py` is updated (Task 7) to serve these same paths by generating data on-the-fly from `parse-item.sh`. This way `entry.js` uses identical fetch paths in both modes.
+
+3. **`todayISO()` bug in entry.js.** Line 11 of `web/static/entry.js` has `function todayISO() { return todayISO(); }` — an infinite recursion. Fix this in Task 16 to `function todayISO() { return new Date().toISOString().split('T')[0]; }`.
+
+4. **Per-item JSON must include cost rows.** `parse-item.sh` currently outputs `description` but not cost rows. Task 3 adds cost rows to the JSON output so the entry page can display cost history without needing raw markdown.
+
+5. **`open-logs` button is local-only.** In Cloudflare mode, this button is hidden (no `/api/open-logs/` endpoint). Task 16 detects mode and hides it.
+
+6. **Customer session cookies use signed tokens, not bare strings.** Task 13 uses HMAC-signed tokens to prevent cookie forgery.
+
+7. **Task execution order adjustment.** Execute Tasks 9 and 10 (customer pages + manifest generators) BEFORE committing Task 8's `build.sh`. This avoids a broken intermediate commit. Task 8's final commit step should be done after Tasks 9 and 10 are complete.
+
+---
+
 ## File Map
 
 ### New files
@@ -348,13 +368,34 @@ Expected: FAIL — `page_password` not in output JSON
 
 - [ ] **Step 3: Update parse-item.sh**
 
-In `scripts/parse-item.sh`, add `page_password` to the result dict (line ~89, after `'delivered_date'`):
+In `scripts/parse-item.sh`, two changes:
+
+**a)** Add `page_password` to the result dict (line ~89, after `'delivered_date'`):
 
 ```python
     'page_password': fields.get('page_password', ''),
 ```
 
 Note: `page_password` is NOT a required field — do not add it to the `required` list (line 46).
+
+**b)** Add cost rows to the JSON output. After extracting the description (line ~70-71), extract cost rows and add to result:
+
+```python
+cost_rows = []
+cost_match = re.search(r'# 費用紀錄\s*\n\| 日期[\s\S]*?\n\|[-|\s]+\n([\s\S]*?)$', body)
+if cost_match:
+    for line in cost_match.group(1).strip().split('\n'):
+        if line.startswith('|'):
+            cells = [c.strip() for c in line.split('|') if c.strip()]
+            if len(cells) == 3:
+                cost_rows.append({'date': cells[0], 'amount': cells[1], 'note': cells[2]})
+```
+
+And add to the result dict:
+
+```python
+    'cost_rows': cost_rows,
+```
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -469,7 +510,11 @@ bash tests/test_create_item.sh
 
 Expected: All PASS
 
-- [ ] **Step 5: Run full existing tests to check for regressions**
+- [ ] **Step 5: Fix ALL existing tests in test_create_item.sh**
+
+Existing tests assert flat paths like `$TEST_TMP/data/repairs/CAM-20260322-EOS-R5-001`. Update all such assertions to use nested paths `$TEST_TMP/data/repairs/2026/03/CAM-20260322-EOS-R5-001`. Search for `data/repairs/CAM-` and `data/repairs/LENS-` etc. in the test file and update every occurrence.
+
+- [ ] **Step 6: Run full test suite for create and parse**
 
 ```bash
 bash tests/test_create_item.sh && bash tests/test_parse_item.sh
@@ -477,7 +522,7 @@ bash tests/test_create_item.sh && bash tests/test_parse_item.sh
 
 Expected: All PASS
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add scripts/create-item.sh tests/test_create_item.sh
@@ -574,13 +619,7 @@ if status_val == 'delivered':
     fm = replace_field(fm, "page_password", "")
 ```
 
-**d) Update hooks data-dir derivation (line 223):** Currently goes 2 levels up from item dir. With YYYY/MM/ nesting, needs to go 4 levels up:
-
-```bash
-HOOKS_DATA_DIR="$(cd "$ITEM_DIR/../../../.." && pwd)"
-```
-
-Wait — this is fragile. Better approach: detect depth by checking for `data` directory:
+**d) Update hooks data-dir derivation (line 223):** Currently goes 2 levels up from item dir. With YYYY/MM/ nesting, the depth varies. Walk up to the `data` directory:
 
 ```bash
 HOOKS_DATA_DIR="$ITEM_DIR"
@@ -589,7 +628,33 @@ while [[ "$(basename "$HOOKS_DATA_DIR")" != "data" && "$HOOKS_DATA_DIR" != "/" ]
 done
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+**e) Update interactive search (lines 24-44):** The interactive mode scans `$REPAIRS_DIR/*/` (flat). Update to scan nested `YYYY/MM/*/` directories:
+
+Change `for dir in "$REPAIRS_DIR"/*/;` to use a find-based approach or nested loop:
+
+```bash
+  if [[ -d "$REPAIRS_DIR" ]]; then
+    while IFS= read -r dir; do
+      [[ -f "$dir/item.md" ]] || continue
+      # ... existing parse + match logic ...
+    done < <(find "$REPAIRS_DIR" -name "item.md" -exec dirname {} \; | sort)
+  fi
+```
+
+Also update the direct item ID match (line 24) to search nested dirs:
+
+```bash
+  FOUND_DIR="$(find "$REPAIRS_DIR" -type d -name "$SEARCH_QUERY" | head -1)"
+  if [[ -n "$FOUND_DIR" && -f "$FOUND_DIR/item.md" ]]; then
+    ITEM_DIR="$FOUND_DIR"
+  else
+```
+
+- [ ] **Step 4: Fix ALL existing tests in test_update_item.sh**
+
+Existing tests create items manually in flat `data/repairs/` directories or use helper functions that do. Update to use `create-item.sh` (which now creates nested dirs) or manually create items in `YYYY/MM/` paths.
+
+- [ ] **Step 5: Run test to verify it passes**
 
 ```bash
 bash tests/test_update_item.sh
@@ -597,11 +662,11 @@ bash tests/test_update_item.sh
 
 Expected: All PASS
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add scripts/update-item.sh tests/test_update_item.sh
-git commit -m "feat: update-item.sh supports page_password, clears on delivered"
+git commit -m "feat: update-item.sh supports page_password, clears on delivered, nested dirs"
 ```
 
 ---
@@ -758,7 +823,31 @@ def _find_item_dir(self, item_id):
 
 **c) Update all methods** that use `_validate_item_id` to use `_find_item_dir` instead: `_handle_get_item_raw`, `_handle_open_logs`, `_handle_update`, `_handle_deliver`.
 
-- [ ] **Step 4: Run tests**
+**d) Add `page_password` to the field_map in `_handle_update` (line ~184):**
+
+```python
+        'page_password': '--page-password',
+```
+
+**e) Add `/_data/` endpoints for dual-mode operation.** `entry.js` uses `/_data/items.json`, `/_data/owners.json`, and `/_data/items/{id}.json` in both local and Cloudflare mode. Add these routes to `do_GET`:
+
+```python
+elif path == '/_data/items.json':
+    self._handle_get_items()  # reuse existing logic
+elif path == '/_data/owners.json':
+    self._handle_get_owners()  # reuse existing logic
+elif path.startswith('/_data/items/') and path.endswith('.json'):
+    item_id = path[len('/_data/items/'):-len('.json')]
+    self._handle_get_item_json(item_id)  # new: returns parsed JSON instead of raw markdown
+```
+
+Add `_handle_get_item_json` which returns the full parsed JSON (including description and cost rows) for a single item.
+
+- [ ] **Step 4: Fix ALL existing tests in test_server.sh**
+
+Update any assertions that reference flat directory paths to use nested `YYYY/MM/` paths.
+
+- [ ] **Step 5: Run tests**
 
 ```bash
 bash tests/test_server.sh
@@ -766,42 +855,16 @@ bash tests/test_server.sh
 
 Expected: All PASS
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add scripts/server.py tests/test_server.sh
-git commit -m "feat: server.py scans nested YYYY/MM/ directories"
+git commit -m "feat: server.py scans nested dirs, serves /_data/ paths, adds page_password"
 ```
 
 ---
 
-## Task 8: Update test helpers for nested directory structure
-
-**Files:**
-- Modify: `tests/helpers.sh`
-
-- [ ] **Step 1: Update setup() function**
-
-The `setup()` function in `helpers.sh` creates `$TEST_TMP/data/repairs`. No change needed since `create-item.sh` now creates `YYYY/MM/` subdirectories automatically. But verify existing tests still pass.
-
-- [ ] **Step 2: Run all existing tests**
-
-```bash
-for t in tests/test_*.sh; do echo "--- $t ---"; bash "$t"; done
-```
-
-Expected: All PASS. If any tests create items manually in flat directories and then call scripts that scan nested dirs, fix those tests to use `create-item.sh` instead.
-
-- [ ] **Step 3: Commit any fixes**
-
-```bash
-git add tests/
-git commit -m "fix: update tests for nested YYYY/MM/ directory structure"
-```
-
----
-
-## Task 9: Build pipeline — build.sh
+## Task 8: Build pipeline — build.sh
 
 **Files:**
 - Create: `scripts/build.sh`
@@ -1001,19 +1064,21 @@ echo "=== Build complete ==="
 chmod +x scripts/build.sh
 ```
 
-- [ ] **Step 5: Run tests** (will fail — depends on generate-customer-pages.sh and generate-manifest.sh which don't exist yet; continue to next tasks)
+- [ ] **Step 5: DO NOT commit yet.** Complete Tasks 9 and 10 first (customer pages + manifest generators), then come back here.
+
+- [ ] **Step 6: After Tasks 9-10 are done, run all build tests**
 
 ```bash
 bash tests/test_build.sh
 ```
 
-Expected: FAIL on customer page and manifest tests (scripts not yet created). Data file tests may pass.
+Expected: All PASS
 
-- [ ] **Step 6: Commit build.sh and tests (partial — remaining scripts in next tasks)**
+- [ ] **Step 7: Commit build.sh, generators, and tests together**
 
 ```bash
-git add scripts/build.sh tests/test_build.sh
-git commit -m "feat: add build.sh orchestrator (depends on customer pages + manifest scripts)"
+git add scripts/build.sh scripts/generate-customer-pages.sh scripts/generate-manifest.sh tests/test_build.sh
+git commit -m "feat: add build pipeline (build.sh, customer pages, manifest generators)"
 ```
 
 ---
@@ -1043,7 +1108,7 @@ DATA_DIR="${1:?ERROR: data-dir required}"
 WEB_DIR="${2:?ERROR: web-dir required}"
 
 python3 -c "
-import sys, json, os, subprocess, glob, html
+import sys, json, os, subprocess, glob, html, re
 
 data_dir = sys.argv[1]
 web_dir = sys.argv[2]
@@ -1070,7 +1135,6 @@ if os.path.isdir(repairs_dir):
             md_content = f.read()
 
         # Extract cost rows from markdown
-        import re
         cost_html = ''
         cost_match = re.search(r'# 費用紀錄\n\n(\| 日期[\s\S]*?)$', md_content)
         if cost_match:
@@ -1132,21 +1196,13 @@ print(f'  {count} customer pages generated')
 " "$DATA_DIR" "$WEB_DIR" "$SCRIPT_DIR/parse-item.sh"
 ```
 
-- [ ] **Step 2: Make executable and run build tests**
+- [ ] **Step 2: Make executable**
 
 ```bash
 chmod +x scripts/generate-customer-pages.sh
-bash tests/test_build.sh
 ```
 
-Expected: Customer page tests should now pass; manifest tests still fail
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add scripts/generate-customer-pages.sh
-git commit -m "feat: add generate-customer-pages.sh"
-```
+Do not commit yet — this will be committed together with build.sh in Task 8, Step 7.
 
 ---
 
@@ -1209,21 +1265,13 @@ print(f'  {len(manifest)} published items in manifest')
 " "$DATA_DIR" "$WEB_DIR" "$SCRIPT_DIR/parse-item.sh"
 ```
 
-- [ ] **Step 2: Make executable and run all build tests**
+- [ ] **Step 2: Make executable**
 
 ```bash
 chmod +x scripts/generate-manifest.sh
-bash tests/test_build.sh
 ```
 
-Expected: All PASS
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add scripts/generate-manifest.sh
-git commit -m "feat: add generate-manifest.sh with salted password hashes"
-```
+Now return to Task 8, Step 6 — run all build tests and commit everything together.
 
 ---
 
@@ -1327,7 +1375,15 @@ export async function onRequest(context) {
         `${COOKIE_NAME}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${COOKIE_MAX_AGE}`);
       return response;
     }
-    return loginPage('密碼錯誤，請重試');
+    const retryPage = loginPage('密碼錯誤，請重試');
+    const retryHtml = (await retryPage.text()).replace(
+      'method="POST"',
+      `method="POST" action="/__auth?redirect=${encodeURIComponent(url.searchParams.get('redirect') || '/')}"`
+    );
+    return new Response(retryHtml, {
+      status: 401,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    });
   }
 
   // Check session cookie
@@ -1394,6 +1450,21 @@ async function hashWithSalt(salt, password) {
   return 'sha256:' + Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, '0')).join('');
 }
 
+async function signToken(itemId, env) {
+  // HMAC-sign the item ID with SHOP_PASSWORD as key to prevent cookie forgery
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', encoder.encode(env.SHOP_PASSWORD), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode('customer:' + itemId));
+  return Array.from(new Uint8Array(sig), b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function verifyToken(token, itemId, env) {
+  const expected = await signToken(itemId, env);
+  return token === expected;
+}
+
 function passwordPage(itemId, error = '') {
   const errorHtml = error ? `<p class="error">${error}</p>` : '';
   return new Response(`<!DOCTYPE html>
@@ -1454,7 +1525,8 @@ export async function onRequest(context) {
     const hash = await hashWithSalt(entry.salt, password);
 
     if (hash === entry.hash) {
-      // Serve the customer page with a session cookie
+      // Serve the customer page with a signed session cookie
+      const token = await signToken(itemId, env);
       const pageUrl = new URL(`/customer/${itemId}.html`, request.url);
       const pageRes = await env.ASSETS.fetch(pageUrl);
       const response = new Response(pageRes.body, {
@@ -1462,15 +1534,15 @@ export async function onRequest(context) {
         headers: { 'Content-Type': 'text/html; charset=utf-8' },
       });
       response.headers.set('Set-Cookie',
-        `${cookieName}=valid; Path=/item/${itemId}; HttpOnly; Secure; SameSite=Strict; Max-Age=${COOKIE_MAX_AGE}`);
+        `${cookieName}=${token}; Path=/item/${itemId}; HttpOnly; Secure; SameSite=Strict; Max-Age=${COOKIE_MAX_AGE}`);
       return response;
     }
     return passwordPage(itemId, '密碼錯誤，請重試');
   }
 
-  // Check session cookie
+  // Check session cookie (HMAC-signed to prevent forgery)
   const token = getCookie(request, cookieName);
-  if (token === 'valid') {
+  if (token && await verifyToken(token, itemId, env)) {
     const pageUrl = new URL(`/customer/${itemId}.html`, request.url);
     const pageRes = await env.ASSETS.fetch(pageUrl);
     return new Response(pageRes.body, {
@@ -1643,6 +1715,7 @@ async function githubApi(env, path, options = {}) {
 
 function findItemPath(itemId) {
   // Extract date from ID: TYPE-YYYYMMDD-MODEL-NNN
+  // Note: assumes type prefix is always a single segment (CAM, LENS, ACCE, OTH)
   const parts = itemId.split('-');
   const datePart = parts[1]; // YYYYMMDD
   const year = datePart.substring(0, 4);
@@ -1798,6 +1871,15 @@ Add the `page_password` field and copyable message block to `web/entry.html`. Af
 
 Key changes in `web/static/entry.js`:
 
+**FIRST: Fix the `todayISO()` bug (line 11).** Replace:
+```javascript
+function todayISO() { return todayISO(); }
+```
+with:
+```javascript
+function todayISO() { return new Date().toISOString().split('T')[0]; }
+```
+
 **a) Data fetching** — change API paths from `/api/items` to `/_data/items.json`, from `/api/owners` to `/_data/owners.json`, from `/api/item/{id}/raw` to `/_data/items/{id}.json`:
 
 ```javascript
@@ -1834,7 +1916,18 @@ function populateFormFromJson(item) {
   document.getElementById('description').value = item.description || '';
   document.getElementById('status').value = item.status || '';
   document.getElementById('page-password').value = item.page_password || '';
-  // Cost history from item — fetch raw markdown or store cost rows in per-item JSON
+
+  // Cost history from per-item JSON (cost_rows added in Task 3)
+  const costRows = item.cost_rows || [];
+  renderCostHistory(costRows);
+  const lastRow = costRows[costRows.length - 1];
+  if (lastRow) {
+    document.getElementById('cost-amount').value = lastRow.amount;
+    document.getElementById('cost-note').value = lastRow.note;
+    originalCost = { amount: lastRow.amount, note: lastRow.note };
+  } else {
+    originalCost = { amount: '', note: '' };
+  }
   updateShareMessage();
 }
 ```
@@ -1889,12 +1982,16 @@ data.page_password = document.getElementById('page-password').value;
 alert('儲存成功，頁面資料將在數分鐘內更新');
 ```
 
-**e) Show publish section in edit mode:**
+**e) Show publish section in edit mode, hide open-logs in Cloudflare mode:**
 
 ```javascript
 function showEditMode() {
   // ... existing code ...
   document.getElementById('publish-section').style.display = '';
+  // Hide open-logs button when not running locally (no /api/open-logs/ endpoint in production)
+  if (window.location.port !== '8787') {
+    document.getElementById('open-logs-btn').style.display = 'none';
+  }
 }
 ```
 
