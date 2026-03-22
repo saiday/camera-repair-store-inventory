@@ -303,6 +303,27 @@ Set via Cloudflare dashboard or `wrangler secret put`:
 | `GITHUB_BRANCH` | Target branch for commits (default: `main`) |
 | `SITE_URL` | Base URL for customer page links (e.g., `https://myshop.pages.dev`) |
 
+## Setup Script
+
+`scripts/setup-cloudflare.sh` — interactive script that walks the shop owner through Cloudflare deployment setup, one question at a time. Designed for non-technical users, paired with `docs/cloudflare-setup.md` as a visual companion.
+
+**Steps (in order):**
+
+1. **Prerequisites check** — verify `wrangler` CLI is installed (prompt to install via `npm install -g wrangler` if missing)
+2. **Cloudflare login** — run `wrangler login` if not already authenticated
+3. **GitHub repository** — ask for `owner/repo` (e.g., `myname/camera-repair-store-inventory`), validate format
+4. **GitHub token** — prompt to enter the fine-grained PAT (show instructions to create one with Contents: Read+Write on the single repo, reference `docs/cloudflare-setup.md` for screenshots)
+5. **Branch** — ask for target branch, default to `main`
+6. **Shop password** — ask the owner to set their admin password for the entry/dashboard
+7. **Site URL** — ask for the Cloudflare Pages URL (or custom domain), default to `https://<project-name>.pages.dev`
+8. **Create Cloudflare Pages project** — run `wrangler pages project create` if not already created
+9. **Set secrets** — run `wrangler secret put` for `SHOP_PASSWORD`, `GITHUB_TOKEN`
+10. **Set env vars** — configure `GITHUB_REPO`, `GITHUB_BRANCH`, `SITE_URL` via wrangler
+11. **Run initial build + deploy** — run `./scripts/build.sh` and `wrangler pages deploy web/`
+12. **Verify** — open the deployed URL and confirm access
+
+Each step shows a clear prompt in Traditional Chinese with English technical terms. On error, the script explains what went wrong and how to fix it, referencing the relevant section of `docs/cloudflare-setup.md`.
+
 ## Rebuild Latency
 
 After a create/update mutation, the GitHub commit triggers a Cloudflare Pages rebuild. This typically takes 30 seconds to a few minutes. During this window, the dashboard and item data are stale.
@@ -322,7 +343,8 @@ After a create/update mutation, the GitHub commit triggers a Cloudflare Pages re
 - Updated `.gitignore` — exclude build-generated `web/_data/` and `web/customer/`
 - `wrangler.toml` — Cloudflare Pages configuration
 - `docs/cloud-architecture.md` — reusable reference for route-based Pages Functions architecture
-- `docs/cloudflare-setup.md` — step-by-step guide for non-technical users (includes GitHub token creation with minimum scope)
+- `scripts/setup-cloudflare.sh` — interactive setup script, walks through configuration one question at a time (see below)
+- `docs/cloudflare-setup.md` — step-by-step guide for non-technical users, companion to `setup-cloudflare.sh` (includes GitHub token creation with minimum scope)
 - Updated `CLAUDE.md` — local dev vs production context, hook architecture clarification
 - Updated `README.md` — project overview with deployment info
 - Updated `scripts/create-item.sh` — new directory structure (`YYYY/MM/`)
