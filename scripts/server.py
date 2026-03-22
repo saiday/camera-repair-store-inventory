@@ -137,6 +137,7 @@ class InventoryHandler(SimpleHTTPRequestHandler):
         item_date = data.get('date') or date.today().isoformat()
         cmd = [
             os.path.join(self.scripts_dir, 'create-item.sh'),
+            '--no-hooks',
             '--data-dir', self.data_dir,
             '--category', data.get('category', ''),
             '--brand', data.get('brand', ''),
@@ -171,7 +172,7 @@ class InventoryHandler(SimpleHTTPRequestHandler):
             self._send_json(404, {'error': f'Item not found: {item_id}'})
             return
 
-        cmd = [os.path.join(self.scripts_dir, 'update-item.sh'), '--item-dir', item_dir]
+        cmd = [os.path.join(self.scripts_dir, 'update-item.sh'), '--no-hooks', '--item-dir', item_dir]
 
         field_map = {
             'status': '--status',
