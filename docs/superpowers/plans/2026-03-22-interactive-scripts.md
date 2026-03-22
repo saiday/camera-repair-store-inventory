@@ -89,7 +89,28 @@ Expected: `--no-hooks` test fails (unknown argument), hooks test fails (owners.j
 
 - [ ] **Step 4: Add `--no-hooks` to existing test calls**
 
-Update all existing test functions in `tests/test_create_item.sh` (`test_create_basic`, `test_model_normalization`, `test_sequence_increment`, `test_initial_cost`, `test_category_prefixes`) to pass `--no-hooks` as the first flag after `create-item.sh`. This prevents background hooks from interfering with test teardown. Also update `tests/test_server.sh` test functions that call `create-item.sh` directly (`test_get_items`, `test_get_owners`, `test_get_item_raw`) to pass `--no-hooks`.
+Update all existing test functions that call `create-item.sh` directly to pass `--no-hooks` as the first flag. This prevents background hooks from spawning during tests and racing with `teardown`.
+
+In `tests/test_create_item.sh`, update every `create-item.sh` call in `test_create_basic`, `test_model_normalization`, `test_sequence_increment`, `test_initial_cost`, and `test_category_prefixes`. Example pattern:
+
+```bash
+# Before:
+"$SCRIPT_DIR/create-item.sh" \
+  --data-dir "$TEST_TMP/data" \
+# After:
+"$SCRIPT_DIR/create-item.sh" \
+  --no-hooks \
+  --data-dir "$TEST_TMP/data" \
+```
+
+In `tests/test_server.sh`, update `test_get_items`, `test_get_owners`, and `test_get_item_raw` the same way:
+
+```bash
+# Before:
+"$SCRIPT_DIR/create-item.sh" --data-dir "$TEST_TMP/data" \
+# After:
+"$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
+```
 
 - [ ] **Step 5: Implement `--no-hooks` flag and hook calls in `create-item.sh`**
 
@@ -112,6 +133,7 @@ After the final `echo "$ITEM_ID"` line (line 117), add hook calls:
 # --- Run hooks (unless --no-hooks) ---
 if [[ -z "$NO_HOOKS" ]]; then
   "$SCRIPT_DIR/update-owners.sh" "$DATA_DIR" &
+  # generate-dashboard.sh defaults web-dir to $SCRIPT_DIR/../web when not passed
   "$SCRIPT_DIR/generate-dashboard.sh" "$DATA_DIR" &
 fi
 ```
@@ -269,7 +291,9 @@ git commit -m "refactor: server passes --no-hooks to prevent double hook executi
 
 - [ ] **Step 1: Add interactive mode block**
 
-Insert after the `SCRIPT_DIR` line (line 13) and before the variable declarations (line 16), add the interactive mode block:
+The goal is to wrap ONLY the argument-parsing and validation section inside `if/else/fi`, so the item-creation logic below it runs for both paths.
+
+Insert after the `SCRIPT_DIR=...` line and before the `DATA_DIR="" CATEGORY=""...` variable declarations, add this block:
 
 ```bash
 # --- Helper: prompt until non-empty ---
@@ -319,22 +343,13 @@ if [[ $# -eq 0 && -t 0 ]]; then
 else
 ```
 
-Then wrap the existing argument parsing block (lines 16-47) as the `else` branch, and close with `fi`:
+Then the existing code (variable declarations, the `while [[ $# -gt 0 ]]` arg-parse loop, and the `for pair in ...` validation loop) becomes the `else` branch. Add `fi` directly after the closing `done` of the `for pair in "DATA_DIR:$DATA_DIR" ...` required-fields validation loop (this is the second `done` in the file — the first `done` closes the `while` arg-parse loop, the second closes the `for` validation loop).
 
-After the existing validation `done` (line 47), add:
+Everything after the `fi` (starting with `# --- Map category to type prefix ---`) is shared by both paths and runs unconditionally.
 
-```bash
-fi
-```
+- [ ] **Step 2: Add success message for interactive mode**
 
-- [ ] **Step 2: Test interactively**
-
-Run manually: `scripts/create-item.sh`
-Enter values when prompted. Verify the item is created and output shows the ID with a checkmark.
-
-- [ ] **Step 3: Add success message for interactive mode**
-
-Change the final output line. Replace `echo "$ITEM_ID"` with:
+Find the `echo "$ITEM_ID"` line (now located just before the `# --- Run hooks` block added in Task 1). Replace it with:
 
 ```bash
 if [[ -t 1 ]]; then
@@ -344,6 +359,16 @@ echo "$ITEM_ID"
 ```
 
 This prints the friendly message to stderr (visible in terminal) while keeping stdout clean for scripts.
+
+- [ ] **Step 3: Test interactively**
+
+Run manually: `scripts/create-item.sh`
+Enter values when prompted. Verify the item is created and output shows the ID with a checkmark.
+
+- [ ] **Step 4: Run existing tests to verify non-interactive mode still works**
+
+Run: `bash tests/test_create_item.sh`
+Expected: All tests PASS (tests pass args, so they don't enter interactive mode)
 
 - [ ] **Step 4: Run existing tests to verify non-interactive mode still works**
 
@@ -366,7 +391,9 @@ git commit -m "feat: add interactive REPL mode to create-item.sh"
 
 - [ ] **Step 1: Add interactive mode block with search**
 
-Insert after the `SCRIPT_DIR` line (line 13) and before the variable declarations (line 16), add:
+The goal is to wrap ONLY the argument-parsing section (`ITEM_DIR=""...` declarations, the `while [[ $# -gt 0 ]]` loop, and the `[[ -n "$ITEM_DIR" ]]` check) inside `if/else/fi`. The Python update logic and everything after runs for both paths.
+
+Insert after the `SCRIPT_DIR=...` line and before the `ITEM_DIR="" STATUS=""...` variable declarations, add:
 
 ```bash
 # --- Interactive mode: search and prompt when no args and TTY ---
@@ -464,7 +491,7 @@ if [[ $# -eq 0 && -t 0 ]]; then
 else
 ```
 
-Wrap the existing argument parsing (lines 16-44) as the else branch, and close with `fi` after line 44.
+The existing code (variable declarations, `while` arg-parse loop, and the `[[ -n "$ITEM_DIR" ]]` required-check) becomes the `else` branch. Add `fi` after the `[[ -f "$ITEM_FILE" ]]` existence check line. Everything after the `fi` (the cost-date defaulting, the Python update block, validation, success message, and hooks) is shared by both paths.
 
 - [ ] **Step 2: Add success message for interactive mode**
 

@@ -106,5 +106,5 @@ The entry page (`entry.html`) search functionality will match against the `brand
 |------|--------|
 | `scripts/create-item.sh` | Add interactive mode, add hook calls, add `--no-hooks` flag |
 | `scripts/update-item.sh` | Add interactive mode with search, add hook calls, add `--no-hooks` flag |
-| `scripts/server.py` | Remove `_run_hooks` method and its call sites |
+| `scripts/server.py` | Pass `--no-hooks` to script calls; keep `_run_hooks` for synchronous API behavior |
 | `web/static/entry.js` (or equivalent) | Add brand to search matching |
