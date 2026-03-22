@@ -40,16 +40,25 @@ if os.path.isdir(repairs_dir):
         if status in groups:
             groups[status].append(item)
 
+for items in groups.values():
+    items.sort(key=lambda x: x.get('received_date', ''))
+
 def render_card(item):
     eid = html.escape(item['id'])
+    ebrand = html.escape(item['brand'])
     emodel = html.escape(item['model'])
+    eserial = html.escape(item['serial_number'])
     eowner = html.escape(item['owner_name'])
     edate = html.escape(item['received_date'])
+    edesc = html.escape(item.get('description', ''))
+    serial_html = f'<span class=\"card-serial\">{eserial}</span>' if eserial else ''
+    desc_html = f'<div class=\"card-desc\">{edesc}</div>' if edesc else ''
     return (
         f'<a class=\"card\" href=\"entry.html?id={eid}\" data-received=\"{edate}\">'
         f'<div class=\"card-id\">{eid}</div>'
-        f'<div class=\"card-model\">{emodel}</div>'
+        f'<div class=\"card-model\">{ebrand} {emodel} {serial_html}</div>'
         f'<div class=\"card-owner\">{eowner}</div>'
+        f'{desc_html}'
         f'<div class=\"days-badge\"></div>'
         f'</a>'
     )

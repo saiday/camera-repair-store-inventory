@@ -67,17 +67,25 @@ if '# 費用紀錄' not in body:
     print(f'ERROR: item.md parse failed — missing section \"# 費用紀錄\" in {item_id}', file=sys.stderr)
     sys.exit(1)
 
+desc_match = re.search(r'# 維修描述\s*\n(.*?)(?=\n#|\Z)', body, re.DOTALL)
+description = desc_match.group(1).strip()
+
+serial = fields.get('serial_number', '')
+if serial == 'N/A':
+    serial = ''
+
 result = {
     'id': fields.get('id', ''),
     'category': fields.get('category', ''),
     'brand': fields.get('brand', ''),
     'model': fields.get('model', ''),
-    'serial_number': fields.get('serial_number', ''),
+    'serial_number': serial,
     'status': fields.get('status', ''),
     'owner_name': fields.get('owner_name', ''),
     'owner_contact': fields.get('owner_contact', ''),
     'received_date': fields.get('received_date', ''),
     'delivered_date': fields.get('delivered_date', ''),
+    'description': description,
 }
 print(json.dumps(result, ensure_ascii=False, indent=2))
 " "$ITEM_FILE"
