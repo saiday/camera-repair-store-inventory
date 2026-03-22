@@ -28,6 +28,7 @@ if [[ $# -eq 0 && -t 0 ]]; then
   # Search items by brand, model, owner, or ID (case-insensitive)
   MATCHES=()
   MATCH_DIRS=()
+  QUERY_LOWER="$(echo "$SEARCH_QUERY" | tr '[:upper:]' '[:lower:]')"
   if [[ -d "$REPAIRS_DIR" ]]; then
     for dir in "$REPAIRS_DIR"/*/; do
       [[ -f "$dir/item.md" ]] || continue
@@ -38,7 +39,6 @@ if [[ $# -eq 0 && -t 0 ]]; then
       local_owner="$(echo "$local_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['owner_name'])")"
 
       # Case-insensitive match
-      QUERY_LOWER="$(echo "$SEARCH_QUERY" | tr '[:upper:]' '[:lower:]')"
       HAYSTACK="$(echo "$local_id $local_brand $local_model $local_owner" | tr '[:upper:]' '[:lower:]')"
       if [[ "$HAYSTACK" == *"$QUERY_LOWER"* ]]; then
         MATCHES+=("$local_id — $local_brand $local_model ($local_owner)")
