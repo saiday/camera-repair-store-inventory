@@ -12,6 +12,51 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# --- Helper: prompt until non-empty ---
+prompt_required() {
+  local prompt_text="$1" value=""
+  while true; do
+    printf '%s' "$prompt_text" >&2
+    read -r value
+    if [[ -n "$value" ]]; then
+      echo "$value"
+      return
+    fi
+    echo "This field is required." >&2
+  done
+}
+
+# --- Interactive mode: prompt for each field when no args and TTY ---
+if [[ $# -eq 0 && -t 0 ]]; then
+  DATA_DIR="${SCRIPT_DIR}/../data"
+
+  # Category (validated against enum)
+  while true; do
+    printf 'Category (camera/lens/accessory/misc): ' >&2
+    read -r CATEGORY
+    case "$CATEGORY" in
+      camera|lens|accessory|misc) break ;;
+      *) echo "Invalid category. Choose: camera, lens, accessory, misc" >&2 ;;
+    esac
+  done
+
+  BRAND="$(prompt_required 'Brand: ')"
+  MODEL="$(prompt_required 'Model: ')"
+  SERIAL="$(prompt_required 'Serial: ')"
+  OWNER_NAME="$(prompt_required 'Owner: ')"
+  OWNER_CONTACT="$(prompt_required 'Contact: ')"
+  DESCRIPTION="$(prompt_required 'Description: ')"
+
+  TODAY="$(date +%Y-%m-%d)"
+  printf 'Date [%s]: ' "$TODAY" >&2
+  read -r DATE
+  DATE="${DATE:-$TODAY}"
+
+  # Fall through to the rest of the script with variables set
+  NO_HOOKS=""
+  COST_AMOUNT=""
+  COST_NOTE=""
+else
 # --- Parse arguments ---
 DATA_DIR="" CATEGORY="" BRAND="" MODEL="" SERIAL="" OWNER_NAME="" OWNER_CONTACT=""
 DESCRIPTION="" DATE="" COST_AMOUNT="" COST_NOTE="" NO_HOOKS=""
@@ -46,6 +91,7 @@ for pair in "DATA_DIR:$DATA_DIR" "CATEGORY:$CATEGORY" "BRAND:$BRAND" "MODEL:$MOD
     exit 1
   fi
 done
+fi
 
 # --- Map category to type prefix ---
 case "$CATEGORY" in
@@ -115,6 +161,9 @@ fi
 "$SCRIPT_DIR/parse-item.sh" "$ITEM_DIR/item.md" > /dev/null
 
 # --- Output the item ID ---
+if [[ -t 1 ]]; then
+  echo "✓ Created $ITEM_ID" >&2
+fi
 echo "$ITEM_ID"
 
 # --- Run hooks (unless --no-hooks) ---
