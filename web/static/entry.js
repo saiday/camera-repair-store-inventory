@@ -118,12 +118,29 @@
   function renderCostHistory(rows) {
     const container = document.getElementById('cost-history');
     if (!container || rows.length === 0) return;
-    let html = '<table><thead><tr><th>日期</th><th>金額</th><th>說明</th></tr></thead><tbody>';
-    rows.forEach(function(r) {
-      html += '<tr><td>' + r.date + '</td><td>' + r.amount + '</td><td>' + r.note + '</td></tr>';
+    var table = document.createElement('table');
+    var thead = document.createElement('thead');
+    var headRow = document.createElement('tr');
+    ['日期', '金額', '說明'].forEach(function(text) {
+      var th = document.createElement('th');
+      th.textContent = text;
+      headRow.appendChild(th);
     });
-    html += '</tbody></table>';
-    container.innerHTML = html;
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+    var tbody = document.createElement('tbody');
+    rows.forEach(function(r) {
+      var tr = document.createElement('tr');
+      [r.date, r.amount, r.note].forEach(function(text) {
+        var td = document.createElement('td');
+        td.textContent = text;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    container.innerHTML = '';
+    container.appendChild(table);
   }
 
   function showEditMode() {
@@ -154,17 +171,18 @@
         results.style.display = 'none';
         return;
       }
-      results.innerHTML = matches.map(function(item) {
-        return '<div class="search-result" data-id="' + item.id + '">' +
-               item.id + ' — ' + item.model + ' (' + item.owner_name + ')</div>';
-      }).join('');
-      results.style.display = '';
-
-      results.querySelectorAll('.search-result').forEach(function(el) {
-        el.addEventListener('click', function() {
-          window.location.href = 'entry.html?id=' + el.dataset.id;
+      results.innerHTML = '';
+      matches.forEach(function(item) {
+        var div = document.createElement('div');
+        div.className = 'search-result';
+        div.dataset.id = item.id;
+        div.textContent = item.id + ' — ' + item.model + ' (' + item.owner_name + ')';
+        div.addEventListener('click', function() {
+          window.location.href = 'entry.html?id=' + encodeURIComponent(item.id);
         });
+        results.appendChild(div);
       });
+      results.style.display = '';
     });
   }
 
@@ -188,20 +206,19 @@
         suggestions.style.display = 'none';
         return;
       }
-      suggestions.innerHTML = matches.map(function(o, i) {
-        return '<div class="suggestion" data-idx="' + i + '">' +
-               o.name + ' — ' + o.contact + '</div>';
-      }).join('');
-      suggestions.style.display = '';
-
-      suggestions.querySelectorAll('.suggestion').forEach(function(el) {
-        el.addEventListener('click', function() {
-          const match = matches[parseInt(el.dataset.idx)];
-          nameInput.value = match.name;
-          contactInput.value = match.contact;
+      suggestions.innerHTML = '';
+      matches.forEach(function(o) {
+        var div = document.createElement('div');
+        div.className = 'suggestion';
+        div.textContent = o.name + ' — ' + o.contact;
+        div.addEventListener('click', function() {
+          nameInput.value = o.name;
+          contactInput.value = o.contact;
           suggestions.style.display = 'none';
         });
+        suggestions.appendChild(div);
       });
+      suggestions.style.display = '';
     });
   }
 

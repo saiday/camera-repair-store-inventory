@@ -15,7 +15,7 @@ DATA_DIR="$1"
 WEB_DIR="$2"
 
 python3 -c "
-import sys, json, os, subprocess
+import sys, json, os, subprocess, html
 
 repairs_dir = os.path.join(sys.argv[1], 'repairs')
 web_dir = sys.argv[2]
@@ -45,11 +45,15 @@ if os.path.isdir(repairs_dir):
             groups[status].append(item)
 
 def render_card(item):
+    eid = html.escape(item['id'])
+    emodel = html.escape(item['model'])
+    eowner = html.escape(item['owner_name'])
+    edate = html.escape(item['received_date'])
     return (
-        f'<a class=\"card\" href=\"entry.html?id={item[\"id\"]}\" data-received=\"{item[\"received_date\"]}\">'
-        f'<div class=\"card-id\">{item[\"id\"]}</div>'
-        f'<div class=\"card-model\">{item[\"model\"]}</div>'
-        f'<div class=\"card-owner\">{item[\"owner_name\"]}</div>'
+        f'<a class=\"card\" href=\"entry.html?id={eid}\" data-received=\"{edate}\">'
+        f'<div class=\"card-id\">{eid}</div>'
+        f'<div class=\"card-model\">{emodel}</div>'
+        f'<div class=\"card-owner\">{eowner}</div>'
         f'<div class=\"days-badge\"></div>'
         f'</a>'
     )

@@ -93,8 +93,21 @@ class InventoryHandler(SimpleHTTPRequestHandler):
         else:
             self._send_json(200, [])
 
+    def _validate_item_id(self, item_id):
+        """Validate item_id to prevent path traversal."""
+        import re
+        if not re.match(r'^[A-Za-z0-9-]+$', item_id):
+            return False
+        resolved = os.path.realpath(os.path.join(self.data_dir, 'repairs', item_id))
+        if not resolved.startswith(os.path.realpath(os.path.join(self.data_dir, 'repairs')) + os.sep):
+            return False
+        return True
+
     def _handle_get_item_raw(self, item_id):
         """Return raw item.md content."""
+        if not self._validate_item_id(item_id):
+            self._send_json(400, {'error': 'Invalid item ID'})
+            return
         item_md = os.path.join(self.data_dir, 'repairs', item_id, 'item.md')
         if os.path.isfile(item_md):
             with open(item_md, 'r') as f:
@@ -108,6 +121,9 @@ class InventoryHandler(SimpleHTTPRequestHandler):
 
     def _handle_open_logs(self, item_id):
         """Open the item's logs folder in Finder."""
+        if not self._validate_item_id(item_id):
+            self._send_json(400, {'error': 'Invalid item ID'})
+            return
         logs_dir = os.path.join(self.data_dir, 'repairs', item_id, 'logs')
         if os.path.isdir(logs_dir):
             subprocess.Popen(['open', logs_dir])
@@ -149,6 +165,9 @@ class InventoryHandler(SimpleHTTPRequestHandler):
     def _handle_update(self, data):
         """Update an existing item."""
         item_id = data.get('id', '')
+        if not self._validate_item_id(item_id):
+            self._send_json(400, {'error': 'Invalid item ID'})
+            return
         item_dir = os.path.join(self.data_dir, 'repairs', item_id)
 
         if not os.path.isdir(item_dir):

@@ -8,6 +8,8 @@ PASS_COUNT=0
 FAIL_COUNT=0
 SERVER_PID=""
 
+trap 'stop_server; teardown' EXIT
+
 run_test() {
   local name="$1"
   shift

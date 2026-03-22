@@ -41,84 +41,78 @@ done
 ITEM_FILE="$ITEM_DIR/item.md"
 [[ -f "$ITEM_FILE" ]] || { echo "ERROR: item.md not found in $ITEM_DIR" >&2; exit 1; }
 
-# --- Apply field updates via Python (handles special chars, unicode, colons in values) ---
-python3 - "$ITEM_FILE" << PYEOF
+# --- Apply field updates via Python ---
+# All user values passed as sys.argv to prevent shell injection
+python3 -c '
 import sys, re
 
-item_file = sys.argv[1]
-with open(item_file, 'r') as f:
+item_file      = sys.argv[1]
+status_val     = sys.argv[2]
+owner_name     = sys.argv[3]
+owner_contact  = sys.argv[4]
+brand_val      = sys.argv[5]
+serial_val     = sys.argv[6]
+delivered_val  = sys.argv[7]
+description_val = sys.argv[8]
+cost_amount    = sys.argv[9]
+cost_note      = sys.argv[10]
+cost_date      = sys.argv[11]
+
+with open(item_file, "r") as f:
     content = f.read()
 
 # Parse out frontmatter boundaries
-fm_match = re.match(r'^(---\n)(.*?)(\n---)', content, re.DOTALL)
+fm_match = re.match(r"^(---\n)(.*?)(\n---)", content, re.DOTALL)
 if not fm_match:
-    print('ERROR: no frontmatter found', file=sys.stderr)
+    print("ERROR: no frontmatter found", file=sys.stderr)
     sys.exit(1)
 
-pre    = fm_match.group(1)   # "---\n"
-fm     = fm_match.group(2)   # frontmatter body
-post   = fm_match.group(3)   # "\n---"
-rest   = content[fm_match.end():]  # everything after closing ---
+pre    = fm_match.group(1)
+fm     = fm_match.group(2)
+post   = fm_match.group(3)
+rest   = content[fm_match.end():]
 
-# --- Helper: replace a frontmatter field value ---
 def replace_field(fm_text, field, new_value):
-    lines = fm_text.split('\n')
+    lines = fm_text.split("\n")
     result = []
     for line in lines:
-        if re.match(r'^' + re.escape(field) + r':', line):
-            result.append(field + ': ' + new_value)
+        if re.match(r"^" + re.escape(field) + r":", line):
+            result.append(field + ": " + new_value)
         else:
             result.append(line)
-    return '\n'.join(result)
-
-# --- Apply updates to frontmatter ---
-status_val    = """$STATUS"""
-owner_name    = """$OWNER_NAME"""
-owner_contact = """$OWNER_CONTACT"""
-brand_val     = """$BRAND"""
-serial_val    = """$SERIAL"""
-delivered_val = """$DELIVERED_DATE"""
+    return "\n".join(result)
 
 if status_val:
-    fm = replace_field(fm, 'status', status_val)
+    fm = replace_field(fm, "status", status_val)
 if owner_name:
-    fm = replace_field(fm, 'owner_name', owner_name)
+    fm = replace_field(fm, "owner_name", owner_name)
 if owner_contact:
-    fm = replace_field(fm, 'owner_contact', owner_contact)
+    fm = replace_field(fm, "owner_contact", owner_contact)
 if brand_val:
-    fm = replace_field(fm, 'brand', brand_val)
+    fm = replace_field(fm, "brand", brand_val)
 if serial_val:
-    fm = replace_field(fm, 'serial_number', '"' + serial_val + '"')
+    fm = replace_field(fm, "serial_number", "\"" + serial_val + "\"")
 if delivered_val:
-    fm = replace_field(fm, 'delivered_date', delivered_val)
+    fm = replace_field(fm, "delivered_date", delivered_val)
 
-# --- Update description section ---
-description_val = """$DESCRIPTION"""
 if description_val:
-    # Replace content between "# 維修描述" and "# 費用紀錄"
     def desc_replacer(m):
-        return m.group(1) + '\n' + description_val + '\n' + m.group(2)
+        return m.group(1) + "\n" + description_val + "\n" + m.group(2)
     rest = re.sub(
-        r'(# 維修描述\n).*?(\n# 費用紀錄)',
+        r"(# 維修描述\n).*?(\n# 費用紀錄)",
         desc_replacer,
         rest,
         flags=re.DOTALL
     )
 
-# --- Append cost entry ---
-cost_amount = """$COST_AMOUNT"""
-cost_note   = """$COST_NOTE"""
-cost_date   = """$COST_DATE"""
-
 if cost_amount and cost_note:
-    cost_line = '| ' + cost_date + ' | ' + cost_amount + ' | ' + cost_note + ' |'
-    rest = rest.rstrip('\n') + '\n' + cost_line + '\n'
+    cost_line = "| " + cost_date + " | " + cost_amount + " | " + cost_note + " |"
+    rest = rest.rstrip("\n") + "\n" + cost_line + "\n"
 
-# --- Reconstruct and write ---
 new_content = pre + fm + post + rest
-with open(item_file, 'w') as f:
+with open(item_file, "w") as f:
     f.write(new_content)
-PYEOF
+' "$ITEM_FILE" "$STATUS" "$OWNER_NAME" "$OWNER_CONTACT" "$BRAND" "$SERIAL" "$DELIVERED_DATE" "$DESCRIPTION" "$COST_AMOUNT" "$COST_NOTE" "$COST_DATE"
 
 # --- Validate ---
 "$SCRIPT_DIR/parse-item.sh" "$ITEM_FILE" > /dev/null
