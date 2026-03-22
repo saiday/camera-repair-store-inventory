@@ -33,10 +33,7 @@ if [[ $# -eq 0 && -t 0 ]]; then
     for dir in "$REPAIRS_DIR"/*/; do
       [[ -f "$dir/item.md" ]] || continue
       local_json="$("$SCRIPT_DIR/parse-item.sh" "$dir/item.md" 2>/dev/null)" || continue
-      local_id="$(echo "$local_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['id'])")"
-      local_brand="$(echo "$local_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['brand'])")"
-      local_model="$(echo "$local_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['model'])")"
-      local_owner="$(echo "$local_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['owner_name'])")"
+      IFS=$'\t' read -r local_id local_brand local_model local_owner <<< "$(echo "$local_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['id'],d['brand'],d['model'],d['owner_name'],sep='\t')")"
 
       # Case-insensitive match
       HAYSTACK="$(echo "$local_id $local_brand $local_model $local_owner" | tr '[:upper:]' '[:lower:]')"
@@ -72,10 +69,7 @@ if [[ $# -eq 0 && -t 0 ]]; then
 
   # Parse current item for display
   CURRENT_JSON="$("$SCRIPT_DIR/parse-item.sh" "$ITEM_DIR/item.md")"
-  CURRENT_STATUS="$(echo "$CURRENT_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['status'])")"
-  CURRENT_BRAND="$(echo "$CURRENT_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['brand'])")"
-  CURRENT_MODEL="$(echo "$CURRENT_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['model'])")"
-  CURRENT_OWNER="$(echo "$CURRENT_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['owner_name'])")"
+  IFS=$'\t' read -r CURRENT_STATUS CURRENT_BRAND CURRENT_MODEL CURRENT_OWNER <<< "$(echo "$CURRENT_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['status'],d['brand'],d['model'],d['owner_name'],sep='\t')")"
 
   echo "" >&2
   echo "Current: status=$CURRENT_STATUS, brand=$CURRENT_BRAND, model=$CURRENT_MODEL, owner=$CURRENT_OWNER" >&2
