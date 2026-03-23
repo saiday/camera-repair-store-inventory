@@ -261,7 +261,7 @@ print_ok "Cloudflare Pages project created."
 print_step 9 "Set Secret Environment Variables"
 
 echo "  Setting SHOP_PASSWORD (admin password)..."
-if echo "$SHOP_PASSWORD" | wrangler pages secret put SHOP_PASSWORD --project-name "$PROJECT_NAME"; then
+if printf '%s' "$SHOP_PASSWORD" | wrangler pages secret put SHOP_PASSWORD --project-name "$PROJECT_NAME"; then
     print_ok "SHOP_PASSWORD set."
 else
     die "Failed to set SHOP_PASSWORD. See ${DOCS_SETUP}."
@@ -269,7 +269,7 @@ fi
 
 echo ""
 echo "  Setting GITHUB_TOKEN..."
-if echo "$GITHUB_TOKEN" | wrangler pages secret put GITHUB_TOKEN --project-name "$PROJECT_NAME"; then
+if printf '%s' "$GITHUB_TOKEN" | wrangler pages secret put GITHUB_TOKEN --project-name "$PROJECT_NAME"; then
     print_ok "GITHUB_TOKEN set."
 else
     die "Failed to set GITHUB_TOKEN. See ${DOCS_SETUP}."
