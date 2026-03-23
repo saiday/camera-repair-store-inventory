@@ -303,7 +303,7 @@ print_ok "wrangler.toml updated."
 
 print_step 11 "Commit and Deploy"
 
-echo "  Committing wrangler.toml and pushing to trigger a deploy..."
+echo "  Committing wrangler.toml and pushing..."
 echo ""
 
 cd "$PROJECT_ROOT"
@@ -311,14 +311,22 @@ cd "$PROJECT_ROOT"
 git add wrangler.toml
 if git diff --cached --quiet; then
     echo "  No changes to commit (wrangler.toml already up to date)."
-    echo "  Pushing to trigger deploy..."
+    echo "  Pushing..."
     git push origin "$GITHUB_BRANCH" || die "git push failed. Check your remote settings."
 else
     git commit -m "chore: add Cloudflare environment variables to wrangler.toml"
     git push origin "$GITHUB_BRANCH" || die "git push failed. Check your remote settings."
 fi
 
-print_ok "Pushed to $GITHUB_BRANCH — Cloudflare will auto-deploy."
+print_ok "Pushed to $GITHUB_BRANCH."
+
+echo ""
+echo "  Deploying to Cloudflare Pages..."
+if wrangler pages deploy web --project-name "$PROJECT_NAME" --branch "$GITHUB_BRANCH"; then
+    print_ok "Deployed to Cloudflare Pages."
+else
+    die "Deployment failed. Try running manually: wrangler pages deploy web --project-name $PROJECT_NAME"
+fi
 
 # ---------------------------------------------------------------------------
 # Step 12: Open Deployed Site
@@ -326,7 +334,7 @@ print_ok "Pushed to $GITHUB_BRANCH — Cloudflare will auto-deploy."
 
 print_step 12 "Open Site"
 
-echo "  Deployment triggered! It may take a minute to finish building."
+echo "  Your repair system is live at: $SITE_URL"
 echo ""
 echo "  Your repair system will be live at: $SITE_URL"
 echo ""
