@@ -4,11 +4,12 @@ category: camera
 brand: Fujifilm
 model: GS645S
 serial_number: "5012345"
-status: not_started
+status: done
 owner_name: 楊先生
 owner_contact: 0989-012-345
 received_date: 2026-03-07
 delivered_date:
+page_password: 0989-012-345
 ---
 
 # 維修描述
@@ -19,3 +20,4 @@ delivered_date:
 
 | 日期 | 金額 | 說明 |
 |------|------|------|
+| 2026-03-23 | 3500 | 完整費用 |
