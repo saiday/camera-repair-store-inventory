@@ -95,11 +95,26 @@ test_dashboard_from_nested_dirs() {
   teardown
 }
 
+# --- Test: cards have data-item-id attribute ---
+test_card_has_item_id() {
+  setup
+  mkdir -p "$TEST_TMP/web/static"
+  create_item "$TEST_TMP/data" "CAM-20260322-EOS-R5-001" "not_started" "王小明" "EOS R5"
+
+  "$SCRIPT_DIR/generate-dashboard.sh" "$TEST_TMP/data" "$TEST_TMP/web"
+
+  local content
+  content="$(cat "$TEST_TMP/web/dashboard.html")"
+  assert_contains "$content" 'data-item-id="CAM-20260322-EOS-R5-001"' "card should have data-item-id attribute"
+  teardown
+}
+
 # --- Run all tests ---
 echo "=== generate-dashboard.sh tests ==="
 run_test "generates dashboard.html" test_generates_html
 run_test "groups by status" test_groups_by_status
 run_test "empty state" test_empty_state
 run_test "dashboard from nested dirs" test_dashboard_from_nested_dirs
+run_test "cards have data-item-id" test_card_has_item_id
 
 print_results

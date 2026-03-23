@@ -51,7 +51,7 @@ def render_card(item):
     serial_html = f'<span class=\"card-serial\">{eserial}</span>' if eserial else ''
     desc_html = f'<div class=\"card-desc\">{edesc}</div>' if edesc else ''
     return (
-        f'<a class=\"card\" href=\"entry.html?id={eid}\" data-received=\"{edate}\">'
+        f'<a class=\"card\" href=\"entry.html?id={eid}\" data-received=\"{edate}\" data-item-id=\"{eid}\">'
         f'<div class=\"card-id\">{eid}</div>'
         f'<div class=\"card-model\">{ebrand} {emodel} {serial_html}</div>'
         f'<div class=\"card-owner\">{eowner}</div>'
