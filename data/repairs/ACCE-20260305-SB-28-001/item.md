@@ -9,6 +9,7 @@ owner_name: 高先生
 owner_contact: 0911-234-567
 received_date: 2026-03-05
 delivered_date:
+page_password: 0911234567
 ---
 
 # 維修描述
