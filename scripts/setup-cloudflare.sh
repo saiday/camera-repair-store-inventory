@@ -321,6 +321,12 @@ fi
 print_ok "Pushed to $GITHUB_BRANCH."
 
 echo ""
+echo "  Running build to generate dashboard and data files..."
+if ! "$SCRIPT_DIR/build.sh" "$PROJECT_ROOT/data" "$PROJECT_ROOT/web"; then
+    die "Build failed. Check that data/ exists and scripts are executable."
+fi
+
+echo ""
 echo "  Deploying to Cloudflare Pages..."
 if wrangler pages deploy web --project-name "$PROJECT_NAME" --branch "$GITHUB_BRANCH"; then
     print_ok "Deployed to Cloudflare Pages."

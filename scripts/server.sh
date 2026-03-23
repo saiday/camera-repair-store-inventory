@@ -29,11 +29,9 @@ fi
 mkdir -p "$PROJECT_DIR/data/repairs"
 [[ -f "$PROJECT_DIR/data/owners.json" ]] || echo '[]' > "$PROJECT_DIR/data/owners.json"
 
-# --- Generate initial dashboard if missing ---
-if [[ ! -f "$PROJECT_DIR/web/dashboard.html" ]]; then
-  echo "Generating initial dashboard..."
-  "$SCRIPT_DIR/generate-dashboard.sh" "$PROJECT_DIR/data" "$PROJECT_DIR/web"
-fi
+# --- Generate dashboard (always refresh to reflect current data) ---
+echo "Generating dashboard..."
+"$SCRIPT_DIR/generate-dashboard.sh" "$PROJECT_DIR/data" "$PROJECT_DIR/web"
 
 # --- Start server ---
 echo "Starting server on http://localhost:$PORT"
