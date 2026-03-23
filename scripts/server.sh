@@ -18,10 +18,10 @@ if ! command -v python3 &>/dev/null; then
 fi
 
 # --- Kill existing process on port ---
-existing_pid="$(lsof -ti :$PORT 2>/dev/null || true)"
-if [[ -n "$existing_pid" ]]; then
-  echo "Killing existing process on port $PORT (PID: $existing_pid)"
-  kill "$existing_pid" 2>/dev/null || true
+existing_pids="$(lsof -ti :$PORT 2>/dev/null || true)"
+if [[ -n "$existing_pids" ]]; then
+  echo "Killing existing process(es) on port $PORT (PIDs: $(echo $existing_pids))"
+  echo "$existing_pids" | xargs kill 2>/dev/null || true
   sleep 1
 fi
 
