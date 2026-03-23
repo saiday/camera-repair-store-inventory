@@ -62,8 +62,8 @@ export async function onRequest(context) {
   const { request, env, next } = context;
   const url = new URL(request.url);
 
-  // Skip auth for customer item pages
-  if (url.pathname.startsWith('/item/')) {
+  // Skip auth for customer item pages and static assets (CSS/JS needed by customer pages)
+  if (url.pathname.startsWith('/item/') || url.pathname.startsWith('/static/')) {
     return next();
   }
 
