@@ -98,6 +98,7 @@ html = f'''<!DOCTYPE html>
   <nav class=\"toolbar\">
     <a href=\"entry.html\">維修單</a>
     <a href=\"dashboard.html\" class=\"active\">看板</a>
+    <button class=\"select-toggle\" onclick=\"toggleSelectMode()\">選取</button>
   </nav>
   <main class=\"kanban\">{columns_html}
   </main>
@@ -109,6 +110,17 @@ html = f'''<!DOCTYPE html>
       {ice_html}
     </div>
   </section>
+  <div class=\"move-bar\" style=\"display:none\">
+    <div class=\"move-bar-count\">已選 0 件 — 移動到：</div>
+    <div class=\"move-bar-pills\">
+      <button class=\"status-pill\" data-status=\"not_started\">未開始</button>
+      <button class=\"status-pill\" data-status=\"in_progress\">進行中</button>
+      <button class=\"status-pill\" data-status=\"testing\">測試中</button>
+      <button class=\"status-pill\" data-status=\"done\">完成\u30fb待取件</button>
+      <button class=\"status-pill\" data-status=\"ice_box\">冰箱</button>
+    </div>
+    <button class=\"move-bar-cancel\" onclick=\"toggleSelectMode()\">取消</button>
+  </div>
   <script src=\"static/dashboard.js\"></script>
 </body>
 </html>'''

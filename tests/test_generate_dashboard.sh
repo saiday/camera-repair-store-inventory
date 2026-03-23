@@ -109,6 +109,37 @@ test_card_has_item_id() {
   teardown
 }
 
+# --- Test: dashboard has select toggle button ---
+test_has_select_toggle() {
+  setup
+  mkdir -p "$TEST_TMP/web/static"
+  create_item "$TEST_TMP/data" "CAM-20260322-EOS-R5-001" "not_started" "王小明" "EOS R5"
+
+  "$SCRIPT_DIR/generate-dashboard.sh" "$TEST_TMP/data" "$TEST_TMP/web"
+
+  local content
+  content="$(cat "$TEST_TMP/web/dashboard.html")"
+  assert_contains "$content" "select-toggle" "should have select toggle button"
+  assert_contains "$content" "選取" "select button should have Chinese label"
+  teardown
+}
+
+# --- Test: dashboard has move-bar ---
+test_has_move_bar() {
+  setup
+  mkdir -p "$TEST_TMP/web/static"
+  create_item "$TEST_TMP/data" "CAM-20260322-EOS-R5-001" "not_started" "王小明" "EOS R5"
+
+  "$SCRIPT_DIR/generate-dashboard.sh" "$TEST_TMP/data" "$TEST_TMP/web"
+
+  local content
+  content="$(cat "$TEST_TMP/web/dashboard.html")"
+  assert_contains "$content" "move-bar" "should have move-bar element"
+  assert_contains "$content" "not_started" "move-bar should contain status API values"
+  assert_contains "$content" "進行中" "move-bar should contain Chinese labels"
+  teardown
+}
+
 # --- Run all tests ---
 echo "=== generate-dashboard.sh tests ==="
 run_test "generates dashboard.html" test_generates_html
@@ -116,5 +147,7 @@ run_test "groups by status" test_groups_by_status
 run_test "empty state" test_empty_state
 run_test "dashboard from nested dirs" test_dashboard_from_nested_dirs
 run_test "cards have data-item-id" test_card_has_item_id
+run_test "has select toggle" test_has_select_toggle
+run_test "has move-bar" test_has_move_bar
 
 print_results
