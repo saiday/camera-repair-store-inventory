@@ -9,6 +9,7 @@ owner_name: 沈先生
 owner_contact: LINE: shen_tc1
 received_date: 2026-03-06
 delivered_date:
+page_password: shen_tc1
 ---
 
 # 維修描述
