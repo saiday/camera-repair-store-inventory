@@ -14,12 +14,7 @@ async function githubApi(env, path, options = {}) {
 }
 
 function findItemPath(itemId) {
-  // Extract date from ID: TYPE-YYYYMMDD-MODEL-NNN
-  const parts = itemId.split('-');
-  const datePart = parts[1]; // YYYYMMDD
-  const year = datePart.substring(0, 4);
-  const month = datePart.substring(4, 6);
-  return `data/repairs/${year}/${month}/${itemId}/item.md`;
+  return `data/repairs/${itemId}/item.md`;
 }
 
 function replaceField(content, field, newValue) {
