@@ -137,6 +137,28 @@ test_api_items_nested_dirs() {
   teardown
 }
 
+# --- Test: POST /api/update changes item status ---
+test_update_status() {
+  setup
+  "$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
+    --category camera --brand Canon --model "EOS R5" \
+    --serial "001" --owner-name "王小明" --owner-contact "0912" \
+    --description "Test" --date "2026-03-22" > /dev/null
+  start_server
+  local response
+  response="$(curl -s -X POST "http://localhost:$TEST_PORT/api/update" \
+    -H "Content-Type: application/json" \
+    -d '{"id": "CAM-20260322-EOS-R5-001", "status": "in_progress"}')"
+  assert_contains "$response" '"ok"' "update should return ok"
+
+  # Verify the item status changed
+  local raw
+  raw="$(curl -s "http://localhost:$TEST_PORT/api/item/CAM-20260322-EOS-R5-001/raw")"
+  assert_contains "$raw" "status: in_progress" "item status should be updated"
+  stop_server
+  teardown
+}
+
 # --- Run all tests ---
 echo "=== server.py tests ==="
 run_test "GET / serves dashboard" test_get_dashboard
@@ -145,5 +167,6 @@ run_test "GET /api/items" test_get_items
 run_test "GET /api/owners" test_get_owners
 run_test "GET /api/item/<id>/raw" test_get_item_raw
 run_test "GET /api/items nested dirs" test_api_items_nested_dirs
+run_test "POST /api/update status" test_update_status
 
 print_results
