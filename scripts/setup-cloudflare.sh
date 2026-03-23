@@ -2,7 +2,8 @@
 # scripts/setup-cloudflare.sh — Interactive Cloudflare Pages setup
 #
 # Walks the shop owner through deploying the camera repair inventory system
-# to Cloudflare Pages. Designed for non-technical users.
+# to Cloudflare Pages with GitHub integration (auto-deploy on push).
+# Designed for non-technical users.
 # See docs/cloudflare-setup.md for a visual companion guide.
 
 set -euo pipefail
@@ -10,6 +11,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PROJECT_NAME="camera-repair-inventory"
+WRANGLER_TOML="$PROJECT_ROOT/wrangler.toml"
 DOCS_SETUP="docs/cloudflare-setup.md"
 
 # ---------------------------------------------------------------------------
@@ -98,7 +100,7 @@ fi
 print_ok "Cloudflare login successful."
 
 # ---------------------------------------------------------------------------
-# Step 3: GitHub repository
+# Step 3: Collect info — GitHub repo, token, branch, password, site URL
 # ---------------------------------------------------------------------------
 
 print_step 3 "GitHub Repository"
@@ -127,10 +129,6 @@ while true; do
     fi
 done
 
-# ---------------------------------------------------------------------------
-# Step 4: GitHub token
-# ---------------------------------------------------------------------------
-
 print_step 4 "GitHub Token"
 
 echo "  A GitHub fine-grained personal access token is required."
@@ -154,10 +152,6 @@ while true; do
     fi
 done
 
-# ---------------------------------------------------------------------------
-# Step 5: GitHub branch
-# ---------------------------------------------------------------------------
-
 print_step 5 "GitHub Branch"
 
 echo "  Enter the Git branch to deploy from (usually main)."
@@ -170,10 +164,6 @@ if [ -z "$GITHUB_BRANCH" ]; then
 fi
 
 print_ok "GitHub branch: $GITHUB_BRANCH"
-
-# ---------------------------------------------------------------------------
-# Step 6: Shop password
-# ---------------------------------------------------------------------------
 
 print_step 6 "Shop Admin Password"
 
@@ -204,10 +194,6 @@ while true; do
     fi
 done
 
-# ---------------------------------------------------------------------------
-# Step 7: Site URL
-# ---------------------------------------------------------------------------
-
 print_step 7 "Site URL"
 
 DEFAULT_SITE_URL="https://${PROJECT_NAME}.pages.dev"
@@ -228,27 +214,45 @@ fi
 print_ok "Site URL: $SITE_URL"
 
 # ---------------------------------------------------------------------------
-# Step 8: Create Cloudflare Pages project
+# Step 8: Create Cloudflare Pages project via Dashboard (GitHub connected)
 # ---------------------------------------------------------------------------
 
-print_step 8 "Create Cloudflare Pages Project"
+print_step 8 "Create Cloudflare Pages Project (GitHub Connected)"
 
-echo "  Creating Cloudflare Pages project: $PROJECT_NAME"
-echo "  (If the project already exists, a warning may appear — that's normal)"
+echo "  To enable auto-deploy on push, the project must be created in the"
+echo "  Cloudflare Dashboard with GitHub connected."
+echo ""
+echo "  A browser will open to the Cloudflare Pages setup page."
+echo "  Follow these steps:"
+echo ""
+echo "    1. Click \"Create a project\" -> \"Connect to Git\""
+echo "    2. Select your GitHub account and repository: $GITHUB_REPO"
+echo "    3. Set these build settings:"
+echo "       - Project name:      $PROJECT_NAME"
+echo "       - Production branch: $GITHUB_BRANCH"
+echo "       - Build command:     bash scripts/build.sh"
+echo "       - Build output dir:  web"
+echo "    4. Click \"Save and Deploy\""
+echo ""
+echo "  The first deploy may fail (secrets are not set yet) — that's normal."
 echo ""
 
-cd "$PROJECT_ROOT"
+CLOUDFLARE_PAGES_URL="https://dash.cloudflare.com/?to=/:account/pages/new/provider/github"
 
-if wrangler pages project create "$PROJECT_NAME" --production-branch "$GITHUB_BRANCH" 2>&1; then
-    print_ok "Cloudflare Pages project created: $PROJECT_NAME"
+confirm_continue "  Press Enter to open the Cloudflare Dashboard..."
+
+if command -v open >/dev/null 2>&1; then
+    open "$CLOUDFLARE_PAGES_URL" 2>/dev/null || true
+elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$CLOUDFLARE_PAGES_URL" 2>/dev/null || true
 else
-    echo ""
-    echo "  [Note] If you see an 'already exists' message, the project was created earlier."
-    echo "  You can continue to the next step."
-    echo "  For other errors, see ${DOCS_SETUP}."
-    echo ""
-    confirm_continue "  Press Enter to continue..."
+    echo "  Could not open browser. Please visit:"
+    echo "  $CLOUDFLARE_PAGES_URL"
 fi
+
+confirm_continue "  Press Enter when the project is created..."
+
+print_ok "Cloudflare Pages project created."
 
 # ---------------------------------------------------------------------------
 # Step 9: Set secrets via wrangler
@@ -272,46 +276,49 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Step 10: Set environment variables
+# Step 10: Write environment variables to wrangler.toml
 # ---------------------------------------------------------------------------
 
-print_step 10 "Set Environment Variables"
+print_step 10 "Write Environment Variables"
 
-echo "  Please set environment variables manually in the Cloudflare Dashboard:"
-echo "  Pages -> ${PROJECT_NAME} -> Settings -> Environment variables"
-echo ""
-echo "  Add these Production environment variables:"
-echo "    GITHUB_REPO   = ${GITHUB_REPO}"
-echo "    GITHUB_BRANCH = ${GITHUB_BRANCH}"
-echo "    SITE_URL      = ${SITE_URL}"
-echo ""
-confirm_continue "  Press Enter when done..."
-print_ok "Environment variables set."
+echo "  Writing GITHUB_REPO, GITHUB_BRANCH, and SITE_URL to wrangler.toml..."
+
+# Rewrite wrangler.toml with vars section
+cat > "$WRANGLER_TOML" <<TOML
+name = "$PROJECT_NAME"
+pages_build_output_dir = "web"
+compatibility_date = "2026-03-22"
+
+[vars]
+GITHUB_REPO = "$GITHUB_REPO"
+GITHUB_BRANCH = "$GITHUB_BRANCH"
+SITE_URL = "$SITE_URL"
+TOML
+
+print_ok "wrangler.toml updated."
 
 # ---------------------------------------------------------------------------
-# Step 11: Build and deploy
+# Step 11: Commit and push to trigger deploy
 # ---------------------------------------------------------------------------
 
-print_step 11 "Build and Deploy"
+print_step 11 "Commit and Deploy"
 
-echo "  Running build.sh..."
+echo "  Committing wrangler.toml and pushing to trigger a deploy..."
 echo ""
 
-if bash "$SCRIPT_DIR/build.sh"; then
-    print_ok "Build complete."
+cd "$PROJECT_ROOT"
+
+git add wrangler.toml
+if git diff --cached --quiet; then
+    echo "  No changes to commit (wrangler.toml already up to date)."
+    echo "  Pushing to trigger deploy..."
+    git push origin "$GITHUB_BRANCH" || die "git push failed. Check your remote settings."
 else
-    die "build.sh failed. Check that the data directory is correct. See ${DOCS_SETUP}."
+    git commit -m "chore: add Cloudflare environment variables to wrangler.toml"
+    git push origin "$GITHUB_BRANCH" || die "git push failed. Check your remote settings."
 fi
 
-echo ""
-echo "  Deploying to Cloudflare Pages..."
-echo ""
-
-if wrangler pages deploy web/ --project-name "$PROJECT_NAME" --branch "$GITHUB_BRANCH"; then
-    print_ok "Deploy complete."
-else
-    die "wrangler pages deploy failed. See ${DOCS_SETUP}."
-fi
+print_ok "Pushed to $GITHUB_BRANCH — Cloudflare will auto-deploy."
 
 # ---------------------------------------------------------------------------
 # Step 12: Open Deployed Site
@@ -319,9 +326,9 @@ fi
 
 print_step 12 "Open Site"
 
-echo "  Deployment complete!"
+echo "  Deployment triggered! It may take a minute to finish building."
 echo ""
-echo "  Your repair system is live at: $SITE_URL"
+echo "  Your repair system will be live at: $SITE_URL"
 echo ""
 echo "  Opening browser in 3 seconds..."
 sleep 3
@@ -343,6 +350,8 @@ echo "============================================================"
 echo ""
 echo "  Repair system URL: $SITE_URL"
 echo "  Log in with the admin password you set."
+echo ""
+echo "  Auto-deploy is enabled: push to '$GITHUB_BRANCH' to update the site."
 echo ""
 echo "  For help, see: ${DOCS_SETUP}"
 echo ""
