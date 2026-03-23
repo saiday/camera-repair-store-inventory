@@ -84,26 +84,26 @@ document.addEventListener('click', function(e) {
 });
 
 document.addEventListener('click', function(e) {
-  var pill = e.target.closest('.status-pill');
+  const pill = e.target.closest('.status-pill');
   if (!pill || !selectMode) return;
   if (pill.classList.contains('disabled')) return;
 
-  var status = pill.getAttribute('data-status');
-  var label = pill.textContent;
-  var count = selectedIds.length;
+  const status = pill.getAttribute('data-status');
+  const label = pill.textContent;
+  const count = selectedIds.length;
 
   if (!confirm('確定移動 ' + count + ' 件到 ' + label + '？')) return;
 
-  var ids = selectedIds.slice();
-  var succeeded = 0;
-  var i = 0;
+  const ids = selectedIds.slice();
+  let succeeded = 0;
+  let i = 0;
 
   function next() {
     if (i >= ids.length) {
       location.reload();
       return;
     }
-    var id = ids[i];
+    const id = ids[i];
     i++;
     fetch('/api/update', {
       method: 'POST',
@@ -114,7 +114,7 @@ document.addEventListener('click', function(e) {
       succeeded++;
       next();
     }).catch(function() {
-      var failed = ids.length - succeeded;
+      const failed = ids.length - succeeded;
       alert('完成 ' + succeeded + ' 件，失敗 ' + failed + ' 件');
       location.reload();
     });
@@ -124,13 +124,13 @@ document.addEventListener('click', function(e) {
 });
 
 function toggleIceBox(el) {
-  var iceBox = el.parentElement;
+  const iceBox = el.parentElement;
   iceBox.classList.toggle('collapsed');
 
   if (selectMode && iceBox.classList.contains('collapsed')) {
     iceBox.querySelectorAll('.card.selected').forEach(function(card) {
-      var itemId = card.getAttribute('data-item-id');
-      var idx = selectedIds.indexOf(itemId);
+      const itemId = card.getAttribute('data-item-id');
+      const idx = selectedIds.indexOf(itemId);
       if (idx !== -1) {
         selectedIds.splice(idx, 1);
       }
