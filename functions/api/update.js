@@ -14,11 +14,6 @@ async function githubApi(env, path, options = {}) {
 }
 
 function findItemPath(itemId) {
-  // Extract YYYYMMDD from ID (e.g. ACCE-20260304-... → 2026, 03)
-  const match = itemId.match(/^[A-Z]+-(\d{4})(\d{2})\d{2}-/);
-  if (match) {
-    return `data/repairs/${match[1]}/${match[2]}/${itemId}/item.md`;
-  }
   return `data/repairs/${itemId}/item.md`;
 }
 
