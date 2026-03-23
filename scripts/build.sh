@@ -57,6 +57,7 @@ cp "$DATA_DIR/owners.json" "$WEB_DIR/_data/owners.json"
 
 echo "=== Build: generating dashboard ==="
 "$SCRIPT_DIR/generate-dashboard.sh" "$DATA_DIR" "$WEB_DIR"
+cp "$WEB_DIR/dashboard.html" "$WEB_DIR/index.html"
 
 echo "=== Build: generating customer pages ==="
 "$SCRIPT_DIR/generate-customer-pages.sh" "$DATA_DIR" "$WEB_DIR"
