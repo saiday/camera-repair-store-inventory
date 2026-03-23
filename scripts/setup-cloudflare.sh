@@ -323,7 +323,8 @@ echo "  Deployment complete!"
 echo ""
 echo "  Your repair system is live at: $SITE_URL"
 echo ""
-echo "  Opening browser..."
+echo "  Opening browser in 3 seconds..."
+sleep 3
 
 if command -v open >/dev/null 2>&1; then
     # macOS
