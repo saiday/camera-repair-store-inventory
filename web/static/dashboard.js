@@ -82,3 +82,43 @@ document.addEventListener('click', function(e) {
   }
   updateMoveBar();
 });
+
+document.addEventListener('click', function(e) {
+  var pill = e.target.closest('.status-pill');
+  if (!pill || !selectMode) return;
+  if (pill.classList.contains('disabled')) return;
+
+  var status = pill.getAttribute('data-status');
+  var label = pill.textContent;
+  var count = selectedIds.length;
+
+  if (!confirm('確定移動 ' + count + ' 件到 ' + label + '？')) return;
+
+  var ids = selectedIds.slice();
+  var succeeded = 0;
+  var i = 0;
+
+  function next() {
+    if (i >= ids.length) {
+      location.reload();
+      return;
+    }
+    var id = ids[i];
+    i++;
+    fetch('/api/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: id, status: status })
+    }).then(function(res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      succeeded++;
+      next();
+    }).catch(function() {
+      var failed = ids.length - succeeded;
+      alert('完成 ' + succeeded + ' 件，失敗 ' + failed + ' 件');
+      location.reload();
+    });
+  }
+
+  next();
+});
