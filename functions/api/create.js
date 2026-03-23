@@ -41,7 +41,7 @@ async function githubApi(env, path, options = {}) {
     headers: {
       'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
       'Accept': 'application/vnd.github+json',
-      'User-Agent': 'camera-repair-inventory',
+      'User-Agent': 'camera-repair-store-inventory',
       ...options.headers,
     },
   });

@@ -10,7 +10,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-PROJECT_NAME="camera-repair-inventory"
+PROJECT_NAME="camera-repair-store-inventory"
 WRANGLER_TOML="$PROJECT_ROOT/wrangler.toml"
 DOCS_SETUP="docs/cloudflare-setup.md"
 
