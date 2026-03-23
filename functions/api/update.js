@@ -19,7 +19,15 @@ function findItemPath(itemId) {
 
 function replaceField(content, field, newValue) {
   const regex = new RegExp(`^${field}:.*$`, 'm');
-  return content.replace(regex, `${field}: ${newValue}`);
+  if (regex.test(content)) {
+    return content.replace(regex, `${field}: ${newValue}`);
+  }
+  // Field missing — insert before closing frontmatter ---
+  const closingIdx = content.indexOf('\n---', 3);
+  if (closingIdx !== -1) {
+    return content.slice(0, closingIdx) + `\n${field}: ${newValue}` + content.slice(closingIdx);
+  }
+  return content;
 }
 
 export async function onRequest(context) {
