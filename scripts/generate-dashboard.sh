@@ -103,7 +103,7 @@ html = f'''<!DOCTYPE html>
   <main class=\"kanban\">{columns_html}
   </main>
   <section class=\"ice-box collapsed\">
-    <h2 class=\"section-toggle\" onclick=\"this.parentElement.classList.toggle(\'collapsed\')\">
+    <h2 class=\"section-toggle\" onclick=\"toggleIceBox(this)\">
       冰箱 <span class=\"count\">({len(ice_items)})</span>
     </h2>
     <div class=\"section-cards\">

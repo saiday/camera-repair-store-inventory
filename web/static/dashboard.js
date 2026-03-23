@@ -122,3 +122,20 @@ document.addEventListener('click', function(e) {
 
   next();
 });
+
+function toggleIceBox(el) {
+  var iceBox = el.parentElement;
+  iceBox.classList.toggle('collapsed');
+
+  if (selectMode && iceBox.classList.contains('collapsed')) {
+    iceBox.querySelectorAll('.card.selected').forEach(function(card) {
+      var itemId = card.getAttribute('data-item-id');
+      var idx = selectedIds.indexOf(itemId);
+      if (idx !== -1) {
+        selectedIds.splice(idx, 1);
+      }
+      card.classList.remove('selected');
+    });
+    updateMoveBar();
+  }
+}
