@@ -336,8 +336,6 @@ print_step 12 "Open Site"
 
 echo "  Your repair system is live at: $SITE_URL"
 echo ""
-echo "  Your repair system will be live at: $SITE_URL"
-echo ""
 echo "  Opening browser in 3 seconds..."
 sleep 3
 
