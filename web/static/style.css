@@ -278,3 +278,57 @@ body {
   flex-shrink: 0;
 }
 .icon-btn:hover { background: #ddd; }
+
+/* --- Customer Page --- */
+.customer-page {
+  max-width: 560px;
+  margin: 40px auto;
+  padding: 0 24px;
+}
+.customer-page h1 {
+  font-size: 1.4rem;
+  margin-bottom: 24px;
+}
+.customer-page h2 {
+  font-size: 1.1rem;
+  margin-bottom: 12px;
+  color: #555;
+}
+.item-details {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+.item-details dt {
+  font-size: 13px;
+  color: #888;
+  font-weight: 500;
+}
+.item-details dd {
+  font-size: 14px;
+}
+.repair-description,
+.cost-log {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+.cost-log table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.cost-log th,
+.cost-log td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #eee;
+  text-align: left;
+}
+.cost-log th { color: #888; font-weight: 500; }
