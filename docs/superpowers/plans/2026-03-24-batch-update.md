@@ -14,7 +14,7 @@
 
 ### Task 1: Extract shared helpers from `functions/api/update.js`
 
-**Context:** `update.js` contains `githubApi`, `findItemPath`, and `replaceField` functions plus field-application logic (lines 53-92). These need to be shared with the new `batch-update.js`. Also fixes a pre-existing bug: `findItemPath` returns a flat path but items live in nested `YYYY/MM/` directories.
+**Context:** `update.js` currently defines three local functions (`githubApi`, `findItemPath`, `replaceField`) and applies field updates inline in the `onRequest` handler (the block between `// Apply field updates` and `// Commit`). These need to be shared with the new `batch-update.js`. Also fixes a pre-existing bug: `findItemPath` returns a flat path (`data/repairs/${itemId}/item.md`) but items live in nested `YYYY/MM/` directories.
 
 **Files:**
 - Create: `functions/api/_update-helpers.js`
@@ -125,7 +125,8 @@ export async function onRequest(context) {
     return Response.json({ error: 'Item not found' }, { status: 404 });
   }
   const fileData = await getRes.json();
-  let content = decodeURIComponent(escape(atob(fileData.content)));
+  // GitHub API returns base64 with embedded newlines; strip before decoding
+  let content = decodeURIComponent(escape(atob(fileData.content.replace(/\n/g, ''))));
   const sha = fileData.sha;
 
   // Apply field updates
@@ -150,12 +151,13 @@ export async function onRequest(context) {
 }
 ```
 
-- [ ] **Step 3: Verify the refactored `update.js` still works**
+- [ ] **Step 3: Verify the refactored `update.js` preserves all behavior**
 
-This is a Cloudflare Worker — there's no local test runner. Verify by reading both files and confirming:
-- All logic from the original `update.js` is preserved in the helpers
+This is a Cloudflare Worker — there's no local test runner. Read the original `functions/api/update.js` (before your edits — use `git show HEAD:functions/api/update.js`) and diff against the new version plus helpers. Confirm:
+- Every function from the original (`githubApi`, `findItemPath`, `replaceField`) exists in `_update-helpers.js`
+- All field-update logic from the original `onRequest` handler (the block applying status, owner_name, serial_number, page_password, delivered_date, cost entries) is captured in `applyUpdates`
 - The import path is correct (relative `./_update-helpers.js`)
-- No functions are missing or renamed
+- The refactored `update.js` produces identical behavior for all inputs
 
 - [ ] **Step 4: Commit**
 
@@ -334,14 +336,15 @@ preventing N rebuilds when batch-moving items on the dashboard."
 
 ### Task 3: Add `_handle_batch_update` to local server
 
-**Context:** The local server (`scripts/server.py`) needs a matching `/api/batch-update` route. It loops through updates calling `update-item.sh --no-hooks` for each, then runs hooks once. The existing `_handle_update` method (lines 194-236) shows the pattern for calling update-item.sh.
+**Context:** The local server (`scripts/server.py`) needs a matching `/api/batch-update` route. It loops through updates calling `update-item.sh --no-hooks` for each, then runs hooks once. The existing `_handle_update` method shows the pattern for calling update-item.sh. Key existing methods you'll reference: `_find_item_dir(item_id)` resolves an item ID to its directory path via glob search, `_send_json(status_code, data)` sends a JSON HTTP response, `_run_hooks(item_id)` runs `update-owners.sh` and `generate-dashboard.sh` (the `item_id` param is accepted but unused — hooks operate on `self.data_dir`).
 
 **Files:**
-- Modify: `scripts/server.py` (add route at line ~78 in `do_POST`, add handler method)
+- Modify: `scripts/server.py` (add route in `do_POST`, add handler method)
+- Modify: `tests/test_server.sh` (add 3 new tests)
 
 - [ ] **Step 1: Write the failing test in `tests/test_server.sh`**
 
-Add after the existing `test_update_status` test (around line 160):
+Add the test function before the `# --- Run all tests ---` comment. The file structure is: test function definitions at the top, then a run section at the bottom that calls `run_test "label" function_name` for each test, ending with `print_results`.
 
 ```bash
 # --- Test: POST /api/batch-update changes multiple item statuses ---
@@ -382,7 +385,7 @@ test_batch_update() {
 }
 ```
 
-Also add to the run section at the bottom:
+Also add to the run section (before the `print_results` call at the end of the file):
 
 ```bash
 run_test "POST /api/batch-update" test_batch_update
@@ -456,7 +459,7 @@ test_batch_update_partial_failure() {
 }
 ```
 
-Also add to the run section:
+Also add to the run section (before `print_results`, after the `run_test` for `test_batch_update`):
 
 ```bash
 run_test "POST /api/batch-update validation" test_batch_update_validation
@@ -465,14 +468,14 @@ run_test "POST /api/batch-update partial failure" test_batch_update_partial_fail
 
 - [ ] **Step 4: Implement `_handle_batch_update` in `server.py`**
 
-Add the route in `do_POST` (after the `/api/deliver` elif, before the else):
+Read `scripts/server.py` and find the `do_POST` method. It has a chain of `if/elif` for routes: `/api/create`, `/api/update`, `/api/deliver`, then `else: 404`. Add the new route before the `else`:
 
 ```python
         elif path == '/api/batch-update':
             self._handle_batch_update(data)
 ```
 
-Add the handler method (after `_handle_deliver`, before `_run_hooks`):
+Add the handler method as a new method on the `InventoryHandler` class. Place it after `_handle_deliver` and before `_run_hooks`:
 
 ```python
     def _handle_batch_update(self, data):
@@ -562,14 +565,14 @@ then runs hooks once at the end. Includes integration tests."
 
 ### Task 4: Update dashboard JS to use batch-update endpoint
 
-**Context:** Currently `web/static/dashboard.js` lines 86-128 handle the status pill click: it loops through selected IDs making sequential `/api/update` calls. Replace this with a single `/api/batch-update` call. The environment-aware success toast is already in place (lines 103-106).
+**Context:** `web/static/dashboard.js` has two `document.addEventListener('click', ...)` blocks in the Selection Mode section. The first handles card selection (checks for `.card` target). The second handles status pill clicks (checks for `.status-pill` target) — it currently loops through `selectedIds` making sequential `fetch('/api/update', ...)` calls via a recursive `next()` function. Replace this second block with a single `/api/batch-update` call. The file also uses `selectMode` and `selectedIds` variables defined earlier in the file.
 
 **Files:**
-- Modify: `web/static/dashboard.js` (lines 86-128, the status pill click handler)
+- Modify: `web/static/dashboard.js`
 
 - [ ] **Step 1: Replace the sequential update loop with a single batch-update call**
 
-Replace the entire status pill click handler (the second `document.addEventListener('click', ...)` block, lines 86-128) with:
+Read `web/static/dashboard.js`. Find the second `document.addEventListener('click', ...)` block — the one that starts with `var pill = e.target.closest('.status-pill')` (or `const pill`). It contains a `function next()` that makes sequential `/api/update` calls. Replace this entire block (from `document.addEventListener('click', function(e) {` to its closing `});`) with:
 
 ```javascript
 document.addEventListener('click', function(e) {
