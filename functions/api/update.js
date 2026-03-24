@@ -1,34 +1,5 @@
 // functions/api/update.js — Update item via GitHub API commit
-
-async function githubApi(env, path, options = {}) {
-  const res = await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}/${path}`, {
-    ...options,
-    headers: {
-      'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
-      'Accept': 'application/vnd.github+json',
-      'User-Agent': 'camera-repair-store-inventory',
-      ...options.headers,
-    },
-  });
-  return res;
-}
-
-function findItemPath(itemId) {
-  return `data/repairs/${itemId}/item.md`;
-}
-
-function replaceField(content, field, newValue) {
-  const regex = new RegExp(`^${field}:.*$`, 'm');
-  if (regex.test(content)) {
-    return content.replace(regex, `${field}: ${newValue}`);
-  }
-  // Field missing — insert before closing frontmatter ---
-  const closingIdx = content.indexOf('\n---', 3);
-  if (closingIdx !== -1) {
-    return content.slice(0, closingIdx) + `\n${field}: ${newValue}` + content.slice(closingIdx);
-  }
-  return content;
-}
+import { githubApi, findItemPath, applyUpdates } from './_update-helpers.js';
 
 export async function onRequest(context) {
   const { request, env } = context;
@@ -47,49 +18,12 @@ export async function onRequest(context) {
     return Response.json({ error: 'Item not found' }, { status: 404 });
   }
   const fileData = await getRes.json();
-  let content = decodeURIComponent(escape(atob(fileData.content)));
+  // GitHub API returns base64 with embedded newlines; strip before decoding
+  let content = decodeURIComponent(escape(atob(fileData.content.replace(/\n/g, ''))));
   const sha = fileData.sha;
 
   // Apply field updates
-  const fields = ['status', 'owner_name', 'owner_contact', 'brand', 'description'];
-  for (const field of fields) {
-    if (data[field] !== undefined && data[field] !== '') {
-      if (field === 'description') {
-        // Replace description section
-        content = content.replace(
-          /(# 維修描述\n\n)[\s\S]*?(\n# 費用紀錄)/,
-          `$1${data.description}\n$2`
-        );
-      } else {
-        content = replaceField(content, field, data[field]);
-      }
-    }
-  }
-
-  if (data.serial_number) {
-    content = replaceField(content, 'serial_number', `"${data.serial_number}"`);
-  }
-  if (data.page_password !== undefined) {
-    content = replaceField(content, 'page_password', data.page_password);
-  }
-  if (data.delivered_date) {
-    content = replaceField(content, 'delivered_date', data.delivered_date);
-  }
-
-  // Clear page_password on delivery
-  if (data.status === 'delivered') {
-    content = replaceField(content, 'page_password', '');
-    if (!data.delivered_date) {
-      content = replaceField(content, 'delivered_date', new Date().toISOString().split('T')[0]);
-    }
-  }
-
-  // Append cost entry
-  if (data.cost_amount && data.cost_note) {
-    const costDate = data.cost_date || new Date().toISOString().split('T')[0];
-    const costLine = `| ${costDate} | ${data.cost_amount} | ${data.cost_note} |`;
-    content = content.trimEnd() + '\n' + costLine + '\n';
-  }
+  content = applyUpdates(content, data);
 
   // Commit
   const updateRes = await githubApi(env, `contents/${filePath}`, {
