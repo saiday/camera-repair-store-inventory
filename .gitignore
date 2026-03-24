@@ -1,5 +1,8 @@
 .superpowers/
 .worktrees/
+.DS_Store
+.playwright-mcp/
+.wrangler/
 web/dashboard.html
 web/index.html
 web/_data/
