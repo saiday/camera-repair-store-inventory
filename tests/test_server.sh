@@ -159,6 +159,95 @@ test_update_status() {
   teardown
 }
 
+# --- Test: POST /api/batch-update changes multiple item statuses ---
+test_batch_update() {
+  setup
+  # Create two items
+  "$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
+    --category camera --brand Canon --model "EOS R5" \
+    --serial "001" --owner-name "王小明" --owner-contact "0912" \
+    --description "Test1" --date "2026-03-22" > /dev/null
+  "$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
+    --category lens --brand Canon --model "RF50" \
+    --serial "002" --owner-name "王小明" --owner-contact "0912" \
+    --description "Test2" --date "2026-03-22" > /dev/null
+  start_server
+
+  # Batch update both items
+  local response
+  response="$(curl -s -X POST "http://localhost:$TEST_PORT/api/batch-update" \
+    -H "Content-Type: application/json" \
+    -d '{"updates": [
+      {"id": "CAM-20260322-EOS-R5-001", "status": "in_progress"},
+      {"id": "LENS-20260322-RF50-001", "status": "done"}
+    ]}')"
+  assert_contains "$response" '"ok"' "batch-update should return ok"
+  assert_contains "$response" "CAM-20260322-EOS-R5-001" "response should list first item"
+  assert_contains "$response" "LENS-20260322-RF50-001" "response should list second item"
+
+  # Verify both items changed
+  local raw1 raw2
+  raw1="$(curl -s "http://localhost:$TEST_PORT/api/item/CAM-20260322-EOS-R5-001/raw")"
+  assert_contains "$raw1" "status: in_progress" "first item status should be updated"
+  raw2="$(curl -s "http://localhost:$TEST_PORT/api/item/LENS-20260322-RF50-001/raw")"
+  assert_contains "$raw2" "status: done" "second item status should be updated"
+
+  stop_server
+  teardown
+}
+
+# --- Test: POST /api/batch-update validates input ---
+test_batch_update_validation() {
+  setup
+  start_server
+
+  # Empty updates array
+  local response
+  response="$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:$TEST_PORT/api/batch-update" \
+    -H "Content-Type: application/json" \
+    -d '{"updates": []}')"
+  assert_eq "400" "$response" "empty updates should return 400"
+
+  # Duplicate IDs
+  response="$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:$TEST_PORT/api/batch-update" \
+    -H "Content-Type: application/json" \
+    -d '{"updates": [{"id": "X-001", "status": "done"}, {"id": "X-001", "status": "done"}]}')"
+  assert_eq "400" "$response" "duplicate IDs should return 400"
+
+  stop_server
+  teardown
+}
+
+# --- Test: POST /api/batch-update partial failure ---
+test_batch_update_partial_failure() {
+  setup
+  "$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
+    --category camera --brand Canon --model "EOS R5" \
+    --serial "001" --owner-name "Test" --owner-contact "0912" \
+    --description "Test" --date "2026-03-22" > /dev/null
+  start_server
+
+  # One valid ID, one non-existent
+  local response
+  response="$(curl -s -X POST "http://localhost:$TEST_PORT/api/batch-update" \
+    -H "Content-Type: application/json" \
+    -d '{"updates": [
+      {"id": "CAM-20260322-EOS-R5-001", "status": "in_progress"},
+      {"id": "NONEXISTENT-20260101-X-001", "status": "done"}
+    ]}')"
+  assert_contains "$response" '"succeeded"' "should report succeeded list"
+  assert_contains "$response" '"failed"' "should report failed list"
+  assert_contains "$response" "CAM-20260322-EOS-R5-001" "succeeded should contain valid item"
+
+  # Verify the valid item was still updated
+  local raw
+  raw="$(curl -s "http://localhost:$TEST_PORT/api/item/CAM-20260322-EOS-R5-001/raw")"
+  assert_contains "$raw" "status: in_progress" "valid item should still be updated"
+
+  stop_server
+  teardown
+}
+
 # --- Run all tests ---
 echo "=== server.py tests ==="
 run_test "GET / serves dashboard" test_get_dashboard
@@ -168,5 +257,8 @@ run_test "GET /api/owners" test_get_owners
 run_test "GET /api/item/<id>/raw" test_get_item_raw
 run_test "GET /api/items nested dirs" test_api_items_nested_dirs
 run_test "POST /api/update status" test_update_status
+run_test "POST /api/batch-update" test_batch_update
+run_test "POST /api/batch-update validation" test_batch_update_validation
+run_test "POST /api/batch-update partial failure" test_batch_update_partial_failure
 
 print_results

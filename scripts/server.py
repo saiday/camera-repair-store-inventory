@@ -77,6 +77,8 @@ class InventoryHandler(SimpleHTTPRequestHandler):
             self._handle_update(data)
         elif path == '/api/deliver':
             self._handle_deliver(data)
+        elif path == '/api/batch-update':
+            self._handle_batch_update(data)
         else:
             self._send_json(404, {'error': 'Not found'})
 
@@ -241,6 +243,71 @@ class InventoryHandler(SimpleHTTPRequestHandler):
         if 'delivered_date' not in data:
             data['delivered_date'] = date.today().isoformat()
         self._handle_update(data)
+
+    def _handle_batch_update(self, data):
+        """Batch update multiple items, running hooks only once."""
+        updates = data.get('updates')
+        if not isinstance(updates, list) or len(updates) == 0:
+            self._send_json(400, {'error': 'updates must be a non-empty array'})
+            return
+        if len(updates) > 50:
+            self._send_json(400, {'error': 'Too many updates (max 50)'})
+            return
+        ids = [u.get('id', '') for u in updates]
+        if len(set(ids)) != len(ids):
+            self._send_json(400, {'error': 'Duplicate IDs in batch'})
+            return
+
+        succeeded = []
+        failed = []
+        for entry in updates:
+            item_id = entry.get('id', '')
+            item_dir = self._find_item_dir(item_id)
+            if item_dir is None or not os.path.isdir(item_dir):
+                failed.append(item_id)
+                continue
+
+            cmd = [os.path.join(self.scripts_dir, 'update-item.sh'), '--no-hooks', '--item-dir', item_dir]
+
+            field_map = {
+                'status': '--status',
+                'owner_name': '--owner-name',
+                'owner_contact': '--owner-contact',
+                'description': '--description',
+                'brand': '--brand',
+                'serial_number': '--serial',
+                'page_password': '--page-password',
+            }
+            for field, flag in field_map.items():
+                if entry.get(field) not in (None, ''):
+                    cmd += [flag, str(entry[field])]
+
+            if entry.get('cost_amount') and entry.get('cost_note'):
+                cmd += [
+                    '--cost-amount', str(entry['cost_amount']),
+                    '--cost-note', entry['cost_note'],
+                    '--cost-date', entry.get('cost_date', ''),
+                ]
+
+            if entry.get('delivered_date'):
+                cmd += ['--delivered-date', entry['delivered_date']]
+
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                succeeded.append(item_id)
+            else:
+                failed.append(item_id)
+
+        # Run hooks once
+        if succeeded:
+            self._run_hooks(succeeded[0])
+
+        if not succeeded:
+            self._send_json(400, {'error': 'All items failed', 'failed': failed})
+        elif failed:
+            self._send_json(200, {'ok': False, 'error': 'Some items failed', 'succeeded': succeeded, 'failed': failed})
+        else:
+            self._send_json(200, {'ok': True, 'ids': succeeded})
 
     def _run_hooks(self, item_id):
         """Run post-mutation hooks in parallel: update owners, regenerate dashboard."""
