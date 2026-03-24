@@ -4,7 +4,7 @@ category: camera
 brand: Rolleiflex
 model: 3.5F
 serial_number: "2804217"
-status: not_started
+status: ice_box
 owner_name: Marco
 owner_contact: email: marco@camera.it
 received_date: 2026-03-11
