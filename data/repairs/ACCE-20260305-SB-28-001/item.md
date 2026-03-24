@@ -4,7 +4,7 @@ category: accessory
 brand: Nikon
 model: SB-28
 serial_number: "3123456"
-status: done
+status: testing
 owner_name: 高先生
 owner_contact: 0911-234-567
 received_date: 2026-03-05
