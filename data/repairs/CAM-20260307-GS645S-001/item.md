@@ -4,7 +4,7 @@ category: camera
 brand: Fujifilm
 model: GS645S
 serial_number: "5012345"
-status: done
+status: testing
 owner_name: 楊先生
 owner_contact: 0989-012-345
 received_date: 2026-03-07
