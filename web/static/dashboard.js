@@ -84,43 +84,40 @@ document.addEventListener('click', function(e) {
 });
 
 document.addEventListener('click', function(e) {
-  const pill = e.target.closest('.status-pill');
+  var pill = e.target.closest('.status-pill');
   if (!pill || !selectMode) return;
   if (pill.classList.contains('disabled')) return;
 
-  const status = pill.getAttribute('data-status');
-  const label = pill.textContent;
-  const count = selectedIds.length;
+  var status = pill.getAttribute('data-status');
+  var label = pill.textContent;
+  var count = selectedIds.length;
 
   if (!confirm('確定移動 ' + count + ' 件到 ' + label + '？')) return;
 
-  const ids = selectedIds.slice();
-  let succeeded = 0;
-  let i = 0;
+  var updates = selectedIds.map(function(id) {
+    return { id: id, status: status };
+  });
 
-  function next() {
-    if (i >= ids.length) {
-      location.reload();
-      return;
+  fetch('/api/batch-update', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ updates: updates })
+  }).then(function(res) {
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }).then(function(data) {
+    var isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    var msg = '儲存成功';
+    if (!isLocal) msg += '，頁面資料將在數分鐘內更新';
+    if (data.failed && data.failed.length > 0) {
+      msg += '\n（' + data.failed.length + ' 件失敗）';
     }
-    const id = ids[i];
-    i++;
-    fetch('/api/update', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: id, status: status })
-    }).then(function(res) {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      succeeded++;
-      next();
-    }).catch(function() {
-      const failed = ids.length - succeeded;
-      alert('完成 ' + succeeded + ' 件，失敗 ' + failed + ' 件');
-      location.reload();
-    });
-  }
-
-  next();
+    alert(msg);
+    location.reload();
+  }).catch(function() {
+    alert('批次更新失敗，請重試');
+    location.reload();
+  });
 });
 
 function toggleIceBox(el) {
