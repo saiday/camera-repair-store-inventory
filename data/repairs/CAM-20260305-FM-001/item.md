@@ -4,7 +4,7 @@ category: camera
 brand: Nikon
 model: FM
 serial_number: "8123456"
-status: not_started
+status: in_progress
 owner_name: 高先生
 owner_contact: 0911-234-567
 received_date: 2026-03-05

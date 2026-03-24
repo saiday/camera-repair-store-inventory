@@ -4,7 +4,7 @@ category: camera
 brand: Minolta
 model: TC-1
 serial_number: "1012345"
-status: not_started
+status: in_progress
 owner_name: 沈先生
 owner_contact: LINE: shen_tc1
 received_date: 2026-03-06

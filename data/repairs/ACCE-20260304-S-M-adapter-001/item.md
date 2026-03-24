@@ -4,7 +4,7 @@ category: accessory
 brand: Amedeo
 model: S-M adapter
 serial_number: "N/A"
-status: not_started
+status: in_progress
 owner_name: 葉先生
 owner_contact: IG: @ye_adapter
 received_date: 2026-03-04
