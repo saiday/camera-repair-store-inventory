@@ -63,13 +63,11 @@ export async function onRequest(context) {
     return Response.json({ error: 'Invalid category' }, { status: 400 });
   }
   const dateCompact = data.date.replace(/-/g, '');
-  const year = data.date.substring(0, 4);
-  const month = data.date.substring(5, 7);
   const normalizedModel = normalizeModel(data.model);
   const idPrefix = `${prefix}-${dateCompact}-${normalizedModel}`;
 
-  // List existing items in the month directory to find next sequence
-  const dirPath = `data/repairs/${year}/${month}`;
+  // List existing items in repairs directory to find next sequence
+  const dirPath = 'data/repairs';
   const listRes = await githubApi(env, `contents/${dirPath}?ref=${branch}`);
   let seq = 1;
   if (listRes.ok) {

@@ -14,11 +14,7 @@ export function githubApi(env, path, options = {}) {
 }
 
 export function findItemPath(itemId) {
-  const parts = itemId.split('-');
-  const dateStr = parts[1]; // e.g. "20260305"
-  const year = dateStr.substring(0, 4);
-  const month = dateStr.substring(4, 6);
-  return `data/repairs/${year}/${month}/${itemId}/item.md`;
+  return `data/repairs/${itemId}/item.md`;
 }
 
 export function replaceField(content, field, newValue) {
