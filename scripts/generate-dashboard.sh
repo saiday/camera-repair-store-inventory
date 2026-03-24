@@ -119,7 +119,6 @@ html = f'''<!DOCTYPE html>
       <button class=\"status-pill\" data-status=\"done\">完成\u30fb待取件</button>
       <button class=\"status-pill\" data-status=\"ice_box\">冰箱</button>
     </div>
-    <button class=\"move-bar-cancel\" onclick=\"toggleSelectMode()\">取消</button>
   </div>
   <script src=\"static/dashboard.js\"></script>
 </body>

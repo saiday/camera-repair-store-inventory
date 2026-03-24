@@ -217,7 +217,7 @@
     if (password && currentItemId) {
       const siteUrl = window.location.origin;
       const url = siteUrl + '/item/' + currentItemId;
-      shareText.textContent = '你的維修單：' + url + '，請使用 ' + password + ' 作為密碼進行查看';
+      shareText.innerHTML = '你的維修單：<a href="' + url + '" target="_blank">' + url + '</a>，請使用 ' + password + ' 作為密碼進行查看';
       shareDiv.style.display = '';
     } else if (shareDiv) {
       shareDiv.style.display = 'none';
@@ -314,7 +314,8 @@
     });
     const result = await res.json();
     if (res.ok) {
-      alert('儲存成功，頁面資料將在數分鐘內更新');
+      var isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      alert(isLocal ? '儲存成功' : '儲存成功，頁面資料將在數分鐘內更新');
       window.location.reload();
     } else {
       alert('更新失敗: ' + result.error);

@@ -55,6 +55,10 @@ class InventoryHandler(SimpleHTTPRequestHandler):
         elif path.startswith('/_data/items/') and path.endswith('.json'):
             item_id = path[len('/_data/items/'):-len('.json')]
             self._handle_get_item_json(item_id)
+        elif path.startswith('/item/'):
+            item_id = path[len('/item/'):]
+            self.path = '/customer/' + item_id + '.html'
+            return super().do_GET()
         else:
             super().do_GET()
 
