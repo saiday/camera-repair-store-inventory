@@ -262,6 +262,10 @@ class InventoryHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode('utf-8'))
 
+    def address_string(self):
+        """Skip reverse DNS lookup to avoid slow responses on macOS."""
+        return self.client_address[0]
+
     def log_message(self, format, *args):
         """Suppress default access log to stderr."""
         pass
