@@ -108,20 +108,18 @@ NORMALIZED_MODEL="$(echo "$MODEL" | sed 's/ /-/g' | sed 's/[^A-Za-z0-9-]//g')"
 
 # --- Format date components ---
 DATE_COMPACT="${DATE//-/}"
-YEAR="${DATE:0:4}"
-MONTH="${DATE:5:2}"
 
 # --- Determine sequence number ---
 PREFIX="${TYPE_PREFIX}-${DATE_COMPACT}-${NORMALIZED_MODEL}"
 SEQ=1
-NESTED_DIR="$DATA_DIR/repairs/$YEAR/$MONTH"
-while [[ -d "$NESTED_DIR/${PREFIX}-$(printf '%03d' $SEQ)" ]]; do
+REPAIRS_DIR="$DATA_DIR/repairs"
+while [[ -d "$REPAIRS_DIR/${PREFIX}-$(printf '%03d' $SEQ)" ]]; do
   SEQ=$((SEQ + 1))
 done
 SEQ_PADDED="$(printf '%03d' $SEQ)"
 
 ITEM_ID="${PREFIX}-${SEQ_PADDED}"
-ITEM_DIR="$NESTED_DIR/$ITEM_ID"
+ITEM_DIR="$REPAIRS_DIR/$ITEM_ID"
 
 # --- Create directory structure ---
 mkdir -p "$ITEM_DIR/logs"

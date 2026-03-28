@@ -6,7 +6,7 @@ source "$(dirname "$0")/helpers.sh"
 
 
 create_test_item() {
-  local item_dir="$TEST_TMP/data/repairs/2026/03/CAM-20260322-EOS-R5-001"
+  local item_dir="$TEST_TMP/data/repairs/CAM-20260322-EOS-R5-001"
   mkdir -p "$item_dir/logs"
   cat > "$item_dir/item.md" << 'ITEM'
 ---
@@ -157,7 +157,7 @@ test_update_page_password() {
   ITEM_ID="$("$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
     --category camera --brand Canon --model Test --serial 123 \
     --owner-name Test --owner-contact 0912 --description "test" --date 2026-03-22)"
-  ITEM_DIR="$TEST_TMP/data/repairs/2026/03/$ITEM_ID"
+  ITEM_DIR="$TEST_TMP/data/repairs/$ITEM_ID"
 
   "$SCRIPT_DIR/update-item.sh" --no-hooks --item-dir "$ITEM_DIR" --page-password "secret123"
 
@@ -171,7 +171,7 @@ test_update_delivered_clears_page_password() {
   ITEM_ID="$("$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
     --category camera --brand Canon --model Test --serial 123 \
     --owner-name Test --owner-contact 0912 --description "test" --date 2026-03-22)"
-  ITEM_DIR="$TEST_TMP/data/repairs/2026/03/$ITEM_ID"
+  ITEM_DIR="$TEST_TMP/data/repairs/$ITEM_ID"
 
   # First set a page_password
   "$SCRIPT_DIR/update-item.sh" --no-hooks --item-dir "$ITEM_DIR" --page-password "secret123"

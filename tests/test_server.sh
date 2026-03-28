@@ -72,7 +72,7 @@ test_create_item() {
       "date": "2026-03-22"
     }')"
   assert_contains "$response" "CAM-20260322-EOS-R5-001" "should return created item ID"
-  assert_dir_exists "$TEST_TMP/data/repairs/2026/03/CAM-20260322-EOS-R5-001" "item dir should exist"
+  assert_dir_exists "$TEST_TMP/data/repairs/CAM-20260322-EOS-R5-001" "item dir should exist"
   stop_server
   teardown
 }

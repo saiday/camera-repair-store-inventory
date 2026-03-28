@@ -218,11 +218,14 @@ class InventoryHandler(SimpleHTTPRequestHandler):
             'description': '--description',
             'brand': '--brand',
             'serial_number': '--serial',
-            'page_password': '--page-password',
         }
         for field, flag in field_map.items():
             if data.get(field) not in (None, ''):
                 cmd += [flag, str(data[field])]
+
+        # page_password: pass through even when empty (to allow clearing)
+        if 'page_password' in data and data['page_password'] is not None:
+            cmd += ['--page-password', str(data['page_password'])]
 
         if data.get('cost_amount') and data.get('cost_note'):
             cmd += [
@@ -280,11 +283,14 @@ class InventoryHandler(SimpleHTTPRequestHandler):
                 'description': '--description',
                 'brand': '--brand',
                 'serial_number': '--serial',
-                'page_password': '--page-password',
             }
             for field, flag in field_map.items():
                 if entry.get(field) not in (None, ''):
                     cmd += [flag, str(entry[field])]
+
+            # page_password: pass through even when empty (to allow clearing)
+            if 'page_password' in entry and entry['page_password'] is not None:
+                cmd += ['--page-password', str(entry['page_password'])]
 
             if entry.get('cost_amount') and entry.get('cost_note'):
                 cmd += [

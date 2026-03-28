@@ -23,7 +23,11 @@ export async function onRequest(context) {
   const sha = fileData.sha;
 
   // Apply field updates
-  content = applyUpdates(content, data);
+  try {
+    content = applyUpdates(content, data);
+  } catch (e) {
+    return Response.json({ error: e.message }, { status: 400 });
+  }
 
   // Commit
   const updateRes = await githubApi(env, `contents/${filePath}`, {

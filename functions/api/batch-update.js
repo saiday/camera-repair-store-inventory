@@ -72,15 +72,20 @@ export async function onRequest(context) {
   }
 
   // --- Step 4: Apply field updates ---
-  const treeEntries = succeeded.map(item => {
-    const updatedContent = applyUpdates(item.content, item.entry);
-    return {
-      path: item.filePath,
-      mode: '100644',
-      type: 'blob',
-      content: updatedContent,
-    };
-  });
+  let treeEntries;
+  try {
+    treeEntries = succeeded.map(item => {
+      const updatedContent = applyUpdates(item.content, item.entry);
+      return {
+        path: item.filePath,
+        mode: '100644',
+        type: 'blob',
+        content: updatedContent,
+      };
+    });
+  } catch (e) {
+    return Response.json({ error: e.message }, { status: 400 });
+  }
 
   // --- Step 5: Create tree ---
   const treeRes = await githubApi(env, 'git/trees', {

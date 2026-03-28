@@ -163,8 +163,8 @@ test_file_not_found() {
 
 test_parse_page_password() {
   setup
-  mkdir -p "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-001"
-  cat > "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-001/item.md" << 'ITEM'
+  mkdir -p "$TEST_TMP/data/repairs/CAM-20260322-Test-001"
+  cat > "$TEST_TMP/data/repairs/CAM-20260322-Test-001/item.md" << 'ITEM'
 ---
 id: CAM-20260322-Test-001
 category: camera
@@ -189,15 +189,15 @@ test
 |------|------|------|
 ITEM
 
-  OUTPUT="$("$SCRIPT_DIR/parse-item.sh" "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-001/item.md")"
+  OUTPUT="$("$SCRIPT_DIR/parse-item.sh" "$TEST_TMP/data/repairs/CAM-20260322-Test-001/item.md")"
   assert_contains "$OUTPUT" '"page_password": "mypassword"' "page_password in JSON output"
   teardown
 }
 
 test_parse_empty_page_password() {
   setup
-  mkdir -p "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-002"
-  cat > "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-002/item.md" << 'ITEM'
+  mkdir -p "$TEST_TMP/data/repairs/CAM-20260322-Test-002"
+  cat > "$TEST_TMP/data/repairs/CAM-20260322-Test-002/item.md" << 'ITEM'
 ---
 id: CAM-20260322-Test-002
 category: camera
@@ -222,15 +222,15 @@ test
 |------|------|------|
 ITEM
 
-  OUTPUT="$("$SCRIPT_DIR/parse-item.sh" "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-002/item.md")"
+  OUTPUT="$("$SCRIPT_DIR/parse-item.sh" "$TEST_TMP/data/repairs/CAM-20260322-Test-002/item.md")"
   assert_contains "$OUTPUT" '"page_password": ""' "empty page_password in JSON output"
   teardown
 }
 
 test_parse_cost_rows() {
   setup
-  mkdir -p "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-003"
-  cat > "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-003/item.md" << 'ITEM'
+  mkdir -p "$TEST_TMP/data/repairs/CAM-20260322-Test-003"
+  cat > "$TEST_TMP/data/repairs/CAM-20260322-Test-003/item.md" << 'ITEM'
 ---
 id: CAM-20260322-Test-003
 category: camera
@@ -257,7 +257,7 @@ test
 | 2026-03-25 | 4500 | 需更換快門組件 |
 ITEM
 
-  OUTPUT="$("$SCRIPT_DIR/parse-item.sh" "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-003/item.md")"
+  OUTPUT="$("$SCRIPT_DIR/parse-item.sh" "$TEST_TMP/data/repairs/CAM-20260322-Test-003/item.md")"
   assert_contains "$OUTPUT" '"cost_rows"' "cost_rows key in JSON output"
   assert_contains "$OUTPUT" '3000' "first cost amount in output"
   assert_contains "$OUTPUT" '4500' "second cost amount in output"
@@ -267,8 +267,8 @@ ITEM
 
 test_parse_empty_cost_rows() {
   setup
-  mkdir -p "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-004"
-  cat > "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-004/item.md" << 'ITEM'
+  mkdir -p "$TEST_TMP/data/repairs/CAM-20260322-Test-004"
+  cat > "$TEST_TMP/data/repairs/CAM-20260322-Test-004/item.md" << 'ITEM'
 ---
 id: CAM-20260322-Test-004
 category: camera
@@ -293,7 +293,7 @@ test
 |------|------|------|
 ITEM
 
-  OUTPUT="$("$SCRIPT_DIR/parse-item.sh" "$TEST_TMP/data/repairs/2026/03/CAM-20260322-Test-004/item.md")"
+  OUTPUT="$("$SCRIPT_DIR/parse-item.sh" "$TEST_TMP/data/repairs/CAM-20260322-Test-004/item.md")"
   assert_contains "$OUTPUT" '"cost_rows": []' "empty cost_rows in JSON output"
   teardown
 }

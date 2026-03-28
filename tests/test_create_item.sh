@@ -25,16 +25,16 @@ test_create_basic() {
   assert_contains "$output" "CAM-20260322-EOS-R5-001" "should output correct ID"
 
   # Directory should exist
-  assert_dir_exists "$TEST_TMP/data/repairs/2026/03/CAM-20260322-EOS-R5-001" "item dir should exist"
+  assert_dir_exists "$TEST_TMP/data/repairs/CAM-20260322-EOS-R5-001" "item dir should exist"
 
   # item.md should exist and be parseable
-  assert_file_exists "$TEST_TMP/data/repairs/2026/03/CAM-20260322-EOS-R5-001/item.md" "item.md should exist"
+  assert_file_exists "$TEST_TMP/data/repairs/CAM-20260322-EOS-R5-001/item.md" "item.md should exist"
 
   # logs/ should exist
-  assert_dir_exists "$TEST_TMP/data/repairs/2026/03/CAM-20260322-EOS-R5-001/logs" "logs dir should exist"
+  assert_dir_exists "$TEST_TMP/data/repairs/CAM-20260322-EOS-R5-001/logs" "logs dir should exist"
 
   # Verify parseable
-  "$SCRIPT_DIR/parse-item.sh" "$TEST_TMP/data/repairs/2026/03/CAM-20260322-EOS-R5-001/item.md" > /dev/null
+  "$SCRIPT_DIR/parse-item.sh" "$TEST_TMP/data/repairs/CAM-20260322-EOS-R5-001/item.md" > /dev/null
 
   teardown
 }
@@ -56,7 +56,7 @@ test_model_normalization() {
     --date "2026-03-22")"
 
   assert_contains "$output" "LENS-20260322-SEL-24-70-GM-001" "model should normalize correctly"
-  assert_dir_exists "$TEST_TMP/data/repairs/2026/03/LENS-20260322-SEL-24-70-GM-001" "normalized dir should exist"
+  assert_dir_exists "$TEST_TMP/data/repairs/LENS-20260322-SEL-24-70-GM-001" "normalized dir should exist"
   teardown
 }
 
@@ -96,7 +96,7 @@ test_initial_cost() {
     --cost-amount "3000" --cost-note "初步估價" > /dev/null
 
   local content
-  content="$(cat "$TEST_TMP/data/repairs/2026/03/CAM-20260322-EOS-R5-001/item.md")"
+  content="$(cat "$TEST_TMP/data/repairs/CAM-20260322-EOS-R5-001/item.md")"
   assert_contains "$content" "| 2026-03-22 | 3000 | 初步估價 |" "should contain cost entry"
   teardown
 }
@@ -132,7 +132,7 @@ test_no_hooks_flag() {
     --description "Test" --date "2026-03-22" > /dev/null
 
   # Item should be created
-  assert_dir_exists "$TEST_TMP/data/repairs/2026/03/CAM-20260322-EOS-R5-001" "item should exist"
+  assert_dir_exists "$TEST_TMP/data/repairs/CAM-20260322-EOS-R5-001" "item should exist"
 
   # owners.json should still be empty (hooks were skipped)
   local owners
@@ -173,13 +173,13 @@ run_test "category prefixes" test_category_prefixes
 run_test "--no-hooks flag" test_no_hooks_flag
 run_test "hooks run by default" test_hooks_run_by_default
 
-test_create_nested_directory() {
+test_create_flat_directory() {
   setup
   ITEM_ID="$("$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
     --category camera --brand Canon --model "EOS R5" --serial 123 \
     --owner-name Test --owner-contact 0912 --description "test" --date 2026-03-22)"
-  assert_file_exists "$TEST_TMP/data/repairs/2026/03/$ITEM_ID/item.md" "item in nested dir"
-  assert_dir_exists "$TEST_TMP/data/repairs/2026/03/$ITEM_ID/logs" "logs in nested dir"
+  assert_file_exists "$TEST_TMP/data/repairs/$ITEM_ID/item.md" "item in flat dir"
+  assert_dir_exists "$TEST_TMP/data/repairs/$ITEM_ID/logs" "logs in flat dir"
   teardown
 }
 
@@ -188,12 +188,12 @@ test_create_includes_page_password() {
   ITEM_ID="$("$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
     --category camera --brand Canon --model "EOS R5" --serial 123 \
     --owner-name Test --owner-contact 0912 --description "test" --date 2026-03-22)"
-  CONTENT="$(cat "$TEST_TMP/data/repairs/2026/03/$ITEM_ID/item.md")"
+  CONTENT="$(cat "$TEST_TMP/data/repairs/$ITEM_ID/item.md")"
   assert_contains "$CONTENT" "page_password:" "page_password field exists in frontmatter"
   teardown
 }
 
-test_create_sequence_in_nested_dir() {
+test_create_sequence_in_flat_dir() {
   setup
   ID1="$("$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
     --category camera --brand Canon --model "EOS R5" --serial 111 \
@@ -206,8 +206,8 @@ test_create_sequence_in_nested_dir() {
   teardown
 }
 
-run_test "create nested directory" test_create_nested_directory
+run_test "create flat directory" test_create_flat_directory
 run_test "create includes page_password" test_create_includes_page_password
-run_test "create sequence in nested dir" test_create_sequence_in_nested_dir
+run_test "create sequence in flat dir" test_create_sequence_in_flat_dir
 
 print_results

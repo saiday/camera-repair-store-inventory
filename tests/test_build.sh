@@ -42,7 +42,7 @@ test_build_generates_customer_page_for_published() {
   ITEM_ID="$("$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
     --category camera --brand Canon --model Test --serial 123 \
     --owner-name Test --owner-contact 0912 --description "test" --date 2026-03-22)"
-  ITEM_DIR="$TEST_TMP/data/repairs/2026/03/$ITEM_ID"
+  ITEM_DIR="$TEST_TMP/data/repairs/$ITEM_ID"
   "$SCRIPT_DIR/update-item.sh" --no-hooks --item-dir "$ITEM_DIR" --page-password "secret"
 
   "$SCRIPT_DIR/build.sh" "$TEST_TMP/data" "$TEST_TMP/web"
@@ -79,7 +79,7 @@ test_build_generates_manifest() {
   ITEM_ID="$("$SCRIPT_DIR/create-item.sh" --no-hooks --data-dir "$TEST_TMP/data" \
     --category camera --brand Canon --model Test --serial 123 \
     --owner-name Test --owner-contact 0912 --description "test" --date 2026-03-22)"
-  ITEM_DIR="$TEST_TMP/data/repairs/2026/03/$ITEM_ID"
+  ITEM_DIR="$TEST_TMP/data/repairs/$ITEM_ID"
   "$SCRIPT_DIR/update-item.sh" --no-hooks --item-dir "$ITEM_DIR" --page-password "secret"
 
   "$SCRIPT_DIR/build.sh" "$TEST_TMP/data" "$TEST_TMP/web"

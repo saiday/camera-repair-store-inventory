@@ -29,7 +29,12 @@ export function replaceField(content, field, newValue) {
   return content;
 }
 
+export const VALID_STATUSES = ['not_started', 'in_progress', 'testing', 'done', 'delivered', 'ice_box'];
+
 export function applyUpdates(content, data) {
+  if (data.status !== undefined && data.status !== '' && !VALID_STATUSES.includes(data.status)) {
+    throw new Error(`Invalid status: ${data.status}`);
+  }
   const fields = ['status', 'owner_name', 'owner_contact', 'brand', 'description'];
   for (const field of fields) {
     if (data[field] !== undefined && data[field] !== '') {

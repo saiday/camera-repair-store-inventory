@@ -57,6 +57,16 @@ export async function onRequest(context) {
   const data = await request.json();
   const branch = env.GITHUB_BRANCH || 'main';
 
+  // Validate required fields
+  const required = ['category', 'brand', 'model', 'owner_name', 'owner_contact', 'date'];
+  const missing = required.filter(f => !data[f] || typeof data[f] !== 'string' || !data[f].trim());
+  if (missing.length > 0) {
+    return Response.json({ error: `Missing required fields: ${missing.join(', ')}` }, { status: 400 });
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data.date)) {
+    return Response.json({ error: 'Invalid date format, expected YYYY-MM-DD' }, { status: 400 });
+  }
+
   // Generate ID components
   const prefix = CATEGORY_PREFIX[data.category];
   if (!prefix) {

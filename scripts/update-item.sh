@@ -93,7 +93,7 @@ if [[ $# -eq 0 && -t 0 ]]; then
 
   # Set remaining vars to empty (not updating)
   OWNER_NAME="" OWNER_CONTACT="" DESCRIPTION="" BRAND="" SERIAL=""
-  DELIVERED_DATE="" NO_HOOKS="" PAGE_PASSWORD=""
+  DELIVERED_DATE="" NO_HOOKS="" PAGE_PASSWORD="" HAS_PAGE_PASSWORD=""
 
   # If status is delivered, auto-set delivered_date
   if [[ "$STATUS" == "delivered" ]]; then
@@ -106,6 +106,7 @@ else
   # --- Parse arguments ---
   ITEM_DIR="" STATUS="" OWNER_NAME="" OWNER_CONTACT="" DESCRIPTION="" BRAND="" SERIAL=""
   COST_AMOUNT="" COST_NOTE="" COST_DATE="" DELIVERED_DATE="" NO_HOOKS="" PAGE_PASSWORD=""
+  HAS_PAGE_PASSWORD=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -120,7 +121,7 @@ else
       --cost-note) COST_NOTE="$2"; shift 2 ;;
       --cost-date) COST_DATE="$2"; shift 2 ;;
       --delivered-date) DELIVERED_DATE="$2"; shift 2 ;;
-      --page-password) PAGE_PASSWORD="$2"; shift 2 ;;
+      --page-password) PAGE_PASSWORD="$2"; HAS_PAGE_PASSWORD="1"; shift 2 ;;
       --no-hooks) NO_HOOKS="1"; shift ;;
       *) echo "ERROR: Unknown argument: $1" >&2; exit 1 ;;
     esac
@@ -154,6 +155,7 @@ cost_amount    = sys.argv[9]
 cost_note      = sys.argv[10]
 cost_date      = sys.argv[11]
 page_password  = sys.argv[12]
+has_page_password = sys.argv[13]
 
 with open(item_file, "r") as f:
     content = f.read()
@@ -191,7 +193,7 @@ if serial_val:
     fm = replace_field(fm, "serial_number", "\"" + serial_val + "\"")
 if delivered_val:
     fm = replace_field(fm, "delivered_date", delivered_val)
-if page_password:
+if has_page_password:
     fm = replace_field(fm, "page_password", page_password)
 if status_val == "delivered":
     fm = replace_field(fm, "page_password", "")
@@ -213,7 +215,7 @@ if cost_amount and cost_note:
 new_content = pre + fm + post + rest
 with open(item_file, "w") as f:
     f.write(new_content)
-' "$ITEM_FILE" "$STATUS" "$OWNER_NAME" "$OWNER_CONTACT" "$BRAND" "$SERIAL" "$DELIVERED_DATE" "$DESCRIPTION" "$COST_AMOUNT" "$COST_NOTE" "$COST_DATE" "$PAGE_PASSWORD"
+' "$ITEM_FILE" "$STATUS" "$OWNER_NAME" "$OWNER_CONTACT" "$BRAND" "$SERIAL" "$DELIVERED_DATE" "$DESCRIPTION" "$COST_AMOUNT" "$COST_NOTE" "$COST_DATE" "$PAGE_PASSWORD" "$HAS_PAGE_PASSWORD"
 
 # --- Validate ---
 "$SCRIPT_DIR/parse-item.sh" "$ITEM_FILE" > /dev/null
