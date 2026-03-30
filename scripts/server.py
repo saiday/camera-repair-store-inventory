@@ -163,11 +163,9 @@ class InventoryHandler(SimpleHTTPRequestHandler):
             self._send_json(400, {'error': 'Invalid item ID'})
             return
         logs_dir = os.path.join(item_dir, 'logs')
-        if os.path.isdir(logs_dir):
-            subprocess.Popen(['open', logs_dir])
-            self._send_json(200, {'ok': True})
-        else:
-            self._send_json(404, {'error': f'Logs folder not found: {item_id}'})
+        os.makedirs(logs_dir, exist_ok=True)
+        subprocess.Popen(['open', logs_dir])
+        self._send_json(200, {'ok': True})
 
     def _handle_create(self, data):
         """Create a new repair item."""
