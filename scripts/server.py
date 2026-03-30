@@ -318,7 +318,7 @@ class InventoryHandler(SimpleHTTPRequestHandler):
             self._send_json(200, {'ok': True, 'ids': succeeded})
 
     def _run_hooks(self, item_id):
-        """Run post-mutation hooks in parallel: update owners, regenerate dashboard."""
+        """Run post-mutation hooks in parallel: update owners, regenerate dashboard and customer pages."""
         p1 = subprocess.Popen(
             [os.path.join(self.scripts_dir, 'update-owners.sh'), self.data_dir],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
@@ -327,8 +327,13 @@ class InventoryHandler(SimpleHTTPRequestHandler):
             [os.path.join(self.scripts_dir, 'generate-dashboard.sh'), self.data_dir, self.web_dir],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
+        p3 = subprocess.Popen(
+            [os.path.join(self.scripts_dir, 'generate-customer-pages.sh'), self.data_dir, self.web_dir],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
         p1.wait()
         p2.wait()
+        p3.wait()
 
     def _send_json(self, status_code, data):
         """Send a JSON response."""
